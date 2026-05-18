@@ -23,12 +23,13 @@ export async function GET(request: NextRequest) {
         escrowAccount: { include: { transactions: true } },
         verificationResults: { orderBy: { createdAt: 'desc' }, take: 1 },
         disputes: { orderBy: { openedAt: 'desc' }, take: 1 },
+        payments: { orderBy: { createdAt: 'desc' }, take: 3 },
       },
       orderBy: { createdAt: 'desc' },
       take: 50,
     })
 
-    return NextResponse.json({ tasks })
+    return NextResponse.json({ tasks: tasks.map((task: any) => ({ ...task, deliverables: parseJson(task.deliverables, []) })) })
   } catch (error) {
     console.error('Task fetch error:', error)
     return NextResponse.json({ tasks: activeTasks, source: 'demo-fallback' })
@@ -101,10 +102,24 @@ export async function POST(request: NextRequest) {
               },
             }
           : undefined,
+        payments: body.fundEscrow
+          ? {
+              create: {
+                type: 'FUND',
+                amount,
+                currency,
+                status: 'COMPLETED',
+                provider: body.paymentRail || 'Airtel Money',
+                reference: `fund-${Date.now().toString(36)}`,
+                metadata: JSON.stringify({ simulated: true, releaseThreshold }),
+              },
+            }
+          : undefined,
       },
       include: {
         milestones: true,
         escrowAccount: { include: { transactions: true } },
+        payments: true,
       },
     })
 
@@ -123,5 +138,14 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Task creation error:', error)
     return NextResponse.json({ error: 'Failed to create task' }, { status: 500 })
+  }
+}
+
+function parseJson(value: string | null | undefined, fallback: unknown) {
+  if (!value) return fallback
+  try {
+    return JSON.parse(value)
+  } catch {
+    return fallback
   }
 }

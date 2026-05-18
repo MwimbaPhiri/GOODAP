@@ -85,6 +85,13 @@ export async function POST(request: NextRequest) {
         country: country ? SecurityUtils.sanitizeInput(country) : 'Zambia',
         role: allowedRoles.includes(normalizedRole) ? normalizedRole as any : 'CLIENT',
         organizationName: organizationName ? SecurityUtils.sanitizeInput(organizationName) : null,
+        trustScoreRecords: {
+          create: {
+            score: 70,
+            delta: 0,
+            reason: 'Starting trust score for new Agent Trust account.',
+          },
+        },
       },
       select: {
         id: true,
@@ -94,6 +101,9 @@ export async function POST(request: NextRequest) {
         role: true,
         trustScore: true,
         kycStatus: true,
+        country: true,
+        phone: true,
+        organizationName: true,
         createdAt: true
       }
     })

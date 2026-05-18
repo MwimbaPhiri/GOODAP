@@ -1,153 +1,197 @@
 # Agent Trust
 
-Agent Trust is an AI-powered escrow and task verification platform for freelancers, SMEs, delivery services, remote teams, digital agencies, gig platforms, and AI agents.
+Agent Trust is a hackathon-ready MVP for AI-powered escrow and task verification. It helps clients, workers, freelancers, SMEs, delivery teams, and AI agents prove that work is complete before simulated escrow is released.
 
-The product acts as a smart trust layer: a client creates a task, funds escrow, a worker or AI agent submits proof, the verification engine scores completion, and payment is released only when the work is verified.
+The MVP is intentionally simple and runnable locally:
 
-## Problem
+- Next.js + React frontend
+- Next.js API routes
+- Prisma + SQLite local backend
+- Supabase/Postgres schema included for hosted deployment planning
+- Email/password authentication
+- Task creation and acceptance
+- Simulated escrow payments
+- Proof submission with simulated file upload
+- Rule-based AI verification
+- Worker trust score updates
+- Disputes, notifications/activity, and admin audit trail
 
-In Zambia and across African gig ecosystems, clients and workers face fraud, fake proof of completion, unfinished work, missing delivery evidence, and payment disputes. Businesses also need new controls for remote workers and AI agents that can produce outputs without reliable proof of completion.
-
-## Solution
-
-Agent Trust combines:
-
-- Escrow wallet simulation
-- Task and milestone management
-- Explainable AI verification
-- Trust and reputation scoring
-- WhatsApp-style communication
-- Dispute resolution
-- QR verification concepts
-- Multi-currency and mobile money payment concepts
-- Smart-contract simulation
-- Fraud risk indicators
-
-## Product structure
+## Full folder structure
 
 ```txt
-src/app/
-  page.tsx                 Landing page with product copy, schema, APIs, flows, and roadmap
-  login/page.tsx           Login and signup concept
-  dashboard/page.tsx       Client and worker dashboards
-  tasks/new/page.tsx       Task creation and milestone setup
-  escrow/page.tsx          Escrow and payment simulation
-  verification/page.tsx    AI verification and explanation screen
-  reputation/page.tsx      Trust profile and score history
-  admin/page.tsx           Admin risk and reviewer dashboard
-  disputes/page.tsx        Dispute center
-  api/auth/register        User registration endpoint
-  api/tasks                Task creation and listing
-  api/escrow               Escrow fund/release/refund/split simulation
-  api/verification         Explainable AI verification endpoint
-  api/disputes             Dispute workflow endpoint
-src/components/agent-trust/
-  app-shell.tsx            Shared fintech shell, navigation, and glass UI helpers
-src/lib/
-  agent-trust-data.ts      Product data, page content, metrics, flows, roadmap
-  trust-scoring.ts         Sample AI verification and scoring engine
-prisma/schema.prisma       Database schema for task trust infrastructure
+.
+├── prisma/
+│   └── schema.prisma                 # Local MVP database schema
+├── supabase/
+│   └── schema.sql                    # Supabase/Postgres version of core tables
+├── src/
+│   ├── app/
+│   │   ├── page.tsx                  # Landing page
+│   │   ├── login/page.tsx            # Register/login
+│   │   ├── dashboard/page.tsx        # Client, worker, AI agent, admin task dashboard
+│   │   ├── tasks/
+│   │   │   ├── new/page.tsx          # Create escrow-backed task
+│   │   │   └── [id]/
+│   │   │       ├── page.tsx          # Task detail, accept, approve, dispute
+│   │   │       ├── submit/page.tsx   # Submit proof
+│   │   │       └── result/page.tsx   # Verification result
+│   │   ├── profile/page.tsx          # Current user's trust score profile
+│   │   ├── admin/page.tsx            # Payments, disputes, audit trail
+│   │   ├── disputes/page.tsx         # Dispute center
+│   │   ├── escrow/page.tsx           # Escrow concept page
+│   │   ├── verification/page.tsx     # Verification engine explainer
+│   │   └── api/
+│   │       ├── auth/register/route.ts
+│   │       ├── auth/login/route.ts
+│   │       ├── tasks/route.ts
+│   │       ├── tasks/[id]/route.ts
+│   │       ├── submissions/route.ts
+│   │       ├── verification/route.ts
+│   │       ├── escrow/route.ts
+│   │       ├── disputes/route.ts
+│   │       ├── users/[id]/route.ts
+│   │       └── activity/route.ts
+│   ├── components/
+│   │   ├── agent-trust/app-shell.tsx # Shared fintech layout and glass panels
+│   │   └── ui/                       # shadcn-style UI primitives
+│   └── lib/
+│       ├── db.ts                     # Prisma client
+│       ├── mvp-client.ts             # Browser session + API helper
+│       ├── security.ts               # Hashing, validation, rate limits
+│       ├── trust-scoring.ts          # Mock AI verification engine
+│       └── agent-trust-data.ts       # Landing/demo data
+├── package.json
+└── README.md
 ```
 
-## Core user flow
+## Core MVP flow
 
-1. Client creates a task with deliverables, milestones, due date, proof requirements, currency, and payment amount.
-2. Client funds escrow through a simulated payment rail such as Airtel Money, MTN MoMo, bank transfer, card, wallet, or USDC.
-3. Worker, delivery team, freelancer, or AI agent submits proof of completion.
-4. Agent Trust analyzes proof through deterministic checks and optional OpenAI explanation.
-5. The engine generates a trust score, pass/review/reject decision, evidence signals, fraud flags, and recommended action.
-6. If approved, escrow can be released automatically.
-7. If disputed or low-confidence, funds remain locked and a reviewer workflow opens.
+1. Register as a `CLIENT`.
+2. Create a task from `/tasks/new`.
+3. The app creates:
+   - `tasks` row
+   - funded simulated escrow account
+   - `payments` row with type `FUND`
+   - audit log event
+4. Logout, then register/login as `WORKER` or `AI_AGENT`.
+5. Open `/dashboard`, accept the task, and submit proof.
+6. `/api/submissions` creates a `submissions` row and runs the trust scoring engine.
+7. The verifier returns:
+   - `PASS`
+   - `FAIL`
+   - `NEEDS REVIEW`
+8. Login as the client, open the task, then approve or dispute.
+9. Approval releases simulated escrow and increases the worker's trust score.
+10. Dispute creates a `disputes` row and appears in `/disputes` and `/admin`.
 
-## Database schema
+## Database tables
 
-The Prisma schema keeps the scaffold's original event models for compatibility and adds Agent Trust models:
+The MVP includes the requested core tables:
 
-- `User`: client, worker, AI agent, reviewer, or admin with role, KYC status, phone, wallet address, country, organization, and trust score.
-- `Task`: job brief, deliverables, status, amount, currency, release threshold, payment rail, risk level, client, assignee, and due date.
-- `Milestone`: payout percentages, due dates, scoped verification rules, and milestone status.
-- `EscrowAccount`: locked balance, provider reference, simulated contract address, funding and release timestamps.
-- `EscrowTransaction`: fund, release, refund, split, and fee ledger events.
-- `ProofSubmission`: documents, screenshots, QR payloads, notes, file URLs, file hashes, and metadata.
-- `VerificationResult`: AI score, decision, explanation, signal JSON, fraud flags, and model version.
-- `Dispute`: review status, priority, reason, evidence summary, reviewer assignment, resolution, and payout decision.
-- `ReputationEvent`: immutable trust score changes.
-- `ActivityLog`: audit-safe workflow events.
+- `users`
+- `tasks`
+- `submissions`
+- `payments`
+- `trust_scores`
+- `disputes`
 
-## API architecture
+It also includes supporting audit/escrow tables:
+
+- `escrow_accounts`
+- `escrow_transactions`
+- `verification_results`
+- `activity_logs`
+- `reputation_events`
+- `milestones`
+
+## API routes
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| `POST` | `/api/auth/register` | Create role-aware accounts. |
-| `GET` | `/api/tasks` | List tasks with clients, assignees, milestones, escrow, verification, and disputes. |
-| `POST` | `/api/tasks` | Create a task, milestones, and optional funded escrow. |
-| `POST` | `/api/escrow` | Simulate fund, release, refund, or split movements. |
-| `POST` | `/api/verification` | Score submitted proof and optionally persist verification results. |
-| `GET` | `/api/disputes` | Return dispute queue. |
-| `POST` | `/api/disputes` | Open a dispute and lock the task into review. |
+| `POST` | `/api/auth/register` | Register a user with email/password and role. |
+| `POST` | `/api/auth/login` | Login and return a safe user object for the browser session. |
+| `GET` | `/api/tasks` | List all tasks for dashboards. |
+| `POST` | `/api/tasks` | Create a task and simulated funded escrow. |
+| `GET` | `/api/tasks/[id]` | Load task detail with submissions, payments, verification, disputes, and audit logs. |
+| `PATCH` | `/api/tasks/[id]` | Accept, approve/release, or dispute a task. |
+| `POST` | `/api/submissions` | Submit proof and run mock AI verification. |
+| `POST` | `/api/verification` | Standalone verification endpoint. |
+| `POST` | `/api/escrow` | Simulate escrow movements. |
+| `GET/POST` | `/api/disputes` | Read or create disputes. |
+| `GET` | `/api/users/[id]` | Load profile and trust score history. |
+| `GET` | `/api/activity` | Admin audit, payment, and dispute data. |
 
-## Sample AI verification logic
+## Mock AI verification logic
 
-`src/lib/trust-scoring.ts` implements a practical MVP scoring engine:
+Implemented in `src/lib/trust-scoring.ts`.
 
-- Deliverable coverage: matches submitted proof against required deliverables and expected keywords.
-- Evidence authenticity: rewards proof variety and file references.
-- Text and file quality: checks proof detail, measurable evidence, and supporting files.
-- Fraud resistance: flags duplicate filenames, placeholder language, short proof notes, and late submissions.
-- Decision rules:
-  - `approved`: score >= 80 with at most one fraud flag
-  - `review`: score >= 58
-  - `rejected`: score < 58
+Scoring signals:
 
-If `OPENAI_API_KEY` is present, `/api/verification` also calls OpenAI's chat completions API and requests a JSON explanation with risks, missing evidence, and reviewer summary. The deterministic score remains the auditable baseline.
+- Keyword matching against task deliverables
+- Completeness check
+- File presence check
+- Proof type variety
+- Text quality
+- Basic fraud flags
 
-## Scalable architecture
+Decision mapping:
 
-1. Experience layer: Next.js web app, mobile-first PWA, WhatsApp-style task room, admin console.
-2. Trust workflow layer: task orchestration, milestone rules, escrow state machine, notification fan-out.
-3. AI layer: OpenAI prompt gateway, deterministic risk engine, file comparison jobs, explainability store.
-4. Financial layer: mobile money adapters, bank/card processor, wallet ledger, smart-contract simulation.
-5. Data and compliance: PostgreSQL, object storage, audit trail, KYC/KYB, fraud analytics.
+- `PASS`: score >= 80 and no serious fraud pattern
+- `NEEDS REVIEW`: score >= 58
+- `FAIL`: score < 58
 
-## MVP roadmap
+## Local setup
 
-### MVP
+Create a `.env` file:
 
-- Authentication
-- Client and worker dashboards
-- Task creation
-- Milestone management
-- Escrow simulation
-- Proof submission
-- AI trust scoring
-- Dispute queue
+```bash
+DATABASE_URL="file:./custom.db"
+```
 
-### Pilot
-
-- Zambia-first Airtel Money and MTN MoMo integration concepts
-- QR delivery verification
-- Reputation profiles
-- Admin reviewer tooling
-- Notification workflows
-
-### Scale
-
-- Partner trust APIs
-- Webhooks for gig platforms and digital agencies
-- Smart-contract settlement rails
-- Advanced fraud graph
-- AI-agent attestation and policy controls
-
-## Local development
+Install and prepare the database:
 
 ```bash
 npm install
 npx prisma generate
+npx prisma db push
 npm run dev
 ```
 
-Build check:
+Open:
+
+```txt
+http://localhost:3000
+```
+
+Production build check:
 
 ```bash
+npx tsc --noEmit
 npm run build
 ```
+
+## Demo script
+
+1. Go to `/login`.
+2. Register `client@example.com` as `CLIENT`.
+3. Go to `/tasks/new` and create a task with deliverables like:
+   `landing page, hero copy, pricing card, WhatsApp CTA, screenshots`.
+4. Logout on `/dashboard`.
+5. Register `worker@example.com` as `WORKER`.
+6. Accept the open task.
+7. Submit proof with a detailed note and filenames:
+   `landing-page.png, mobile-screenshot.png, pricing-card.png`.
+8. Open the verification result.
+9. Login as the client and approve release, or dispute.
+10. Check `/profile`, `/disputes`, and `/admin`.
+
+## Supabase path
+
+The runnable MVP uses Prisma + SQLite so it works immediately in local/browser preview. For Supabase:
+
+1. Create a Supabase project.
+2. Run `supabase/schema.sql` in the SQL editor.
+3. Replace the Prisma/SQLite calls with Supabase client calls or configure Prisma for Postgres.
+4. Use Supabase Auth for production-grade email/password sessions.
+
+This keeps the hackathon demo low-friction while preserving a clear path to a hosted backend.

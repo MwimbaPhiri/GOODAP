@@ -44,6 +44,7 @@ model User {
   openedDisputes    Dispute[] @relation("OpenedDisputes")
   assignedDisputes  Dispute[] @relation("AssignedDisputes")
   reputationEvents  ReputationEvent[]
+  trustScoreRecords  TrustScore[]
   
   @@map("users")
 }
@@ -227,8 +228,9 @@ model Task {
   verificationResults VerificationResult[]
   disputes            Dispute[]
   activityLogs        ActivityLog[]
+  payments            Payment[]
 
-  @@map("trust_tasks")
+  @@map("tasks")
 }
 
 model Milestone {
@@ -303,7 +305,7 @@ model ProofSubmission {
   submittedBy         User     @relation(fields: [submittedById], references: [id])
   verificationResults VerificationResult[]
 
-  @@map("proof_submissions")
+  @@map("submissions")
 }
 
 model VerificationResult {
@@ -360,6 +362,37 @@ model ReputationEvent {
   @@map("reputation_events")
 }
 
+model Payment {
+  id          String   @id @default(cuid())
+  taskId      String
+  amount      Float
+  currency    String   @default("ZMW")
+  type        EscrowTransactionType
+  status      EscrowTransactionStatus @default(PENDING)
+  provider    String?
+  reference   String?
+  metadata    String?
+  createdAt   DateTime @default(now())
+
+  task        Task     @relation(fields: [taskId], references: [id])
+
+  @@map("payments")
+}
+
+model TrustScore {
+  id          String   @id @default(cuid())
+  userId      String
+  taskId      String?
+  score       Int
+  delta       Int
+  reason      String
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("trust_scores")
+}
+
 enum EventType {
   SOCIAL
   CORPORATE
@@ -405,6 +438,7 @@ enum TaskStatus {
   PROOF_SUBMITTED
   VERIFYING
   APPROVED
+  REJECTED
   DISPUTED
   RELEASED
   REFUNDED

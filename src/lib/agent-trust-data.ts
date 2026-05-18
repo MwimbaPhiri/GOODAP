@@ -25,7 +25,7 @@ export const appNav = [
   { href: "/tasks/new", label: "Create task" },
   { href: "/escrow", label: "Escrow" },
   { href: "/verification", label: "AI verify" },
-  { href: "/reputation", label: "Reputation" },
+  { href: "/profile", label: "Profile" },
   { href: "/disputes", label: "Disputes" },
   { href: "/admin", label: "Admin" },
 ]
