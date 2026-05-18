@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const result = scoreVerificationEvidence(body)
-    let aiExplanation = null
+    let aiExplanation: Record<string, any> | null = null
 
     try {
       aiExplanation = await requestOpenAIExplanation(body, result)

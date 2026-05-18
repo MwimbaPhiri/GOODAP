@@ -7,6 +7,17 @@ export interface Web3State {
   chainId: number | null
 }
 
+type EthereumProvider = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
+}
+
+type EthereumWindow = Window & typeof globalThis & {
+  ethereum?: EthereumProvider
+  ethers?: any
+}
+
+const getEthereumWindow = () => window as EthereumWindow
+
 export class BaseWallet {
   private provider: any = null
   private signer: any = null
@@ -14,12 +25,14 @@ export class BaseWallet {
   async connect(): Promise<Web3State> {
     try {
       // Check if MetaMask or similar wallet is installed
-      if (typeof window !== 'undefined' && window.ethereum) {
+      const ethereumWindow = getEthereumWindow()
+
+      if (typeof window !== 'undefined' && ethereumWindow.ethereum) {
         // Request account access
-        await window.ethereum.request({ method: 'eth_requestAccounts' })
+        await ethereumWindow.ethereum.request({ method: 'eth_requestAccounts' })
         
         // Get provider and signer
-        this.provider = new (window as any).ethers.providers.Web3Provider(window.ethereum)
+        this.provider = new ethereumWindow.ethers.providers.Web3Provider(ethereumWindow.ethereum)
         this.signer = this.provider.getSigner()
         
         // Get address
@@ -27,7 +40,7 @@ export class BaseWallet {
         
         // Get balance
         const balance = await this.provider.getBalance(address)
-        const balanceInEth = (window as any).ethers.utils.formatEther(balance)
+        const balanceInEth = ethereumWindow.ethers.utils.formatEther(balance)
         
         // Get network
         const network = await this.provider.getNetwork()
@@ -52,17 +65,22 @@ export class BaseWallet {
 
   async switchToBase(): Promise<void> {
     try {
+      const ethereumWindow = getEthereumWindow()
+      if (!ethereumWindow.ethereum) {
+        throw new Error('Ethereum provider not found')
+      }
+
       const baseChainId = '0x2105' // Base Mainnet chain ID
       
       try {
-        await window.ethereum.request({
+        await ethereumWindow.ethereum.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: baseChainId }]
         })
       } catch (switchError: any) {
         // This error code indicates that the chain has not been added to MetaMask
         if (switchError.code === 4902) {
-          await window.ethereum.request({
+          await ethereumWindow.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [
               {
@@ -108,7 +126,7 @@ export class BaseWallet {
     try {
       const tx = await this.signer.sendTransaction({
         to,
-        value: (window as any).ethers.utils.parseEther(amount)
+        value: getEthereumWindow().ethers.utils.parseEther(amount)
       })
       
       await tx.wait()
@@ -126,7 +144,7 @@ export class BaseWallet {
 
     const address = await this.signer.getAddress()
     const balance = await this.provider.getBalance(address)
-    return (window as any).ethers.utils.formatEther(balance)
+    return getEthereumWindow().ethers.utils.formatEther(balance)
   }
 }
 
@@ -165,7 +183,7 @@ export class MockWallet {
 }
 
 export const getWallet = () => {
-  if (typeof window !== 'undefined' && window.ethereum) {
+  if (typeof window !== 'undefined' && getEthereumWindow().ethereum) {
     return new BaseWallet()
   }
   return new MockWallet()
