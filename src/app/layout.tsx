@@ -7,6 +7,7 @@ import ErrorBoundary from "@/components/error-boundary"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://agenttrust.africa"),
   title: "Agent Trust - AI Escrow and Task Verification",
   description: "AI-powered escrow, task verification, reputation scoring, and dispute workflows for Africa's work economy.",
   keywords: ["escrow", "AI verification", "fintech", "freelancers", "Zambia", "mobile money", "trust infrastructure"],
