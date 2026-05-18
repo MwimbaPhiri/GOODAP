@@ -1,0 +1,616 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  passwordHash      String?
+  name              String?
+  avatar            String?
+  bio               String?
+  phone             String?
+  country           String?  @default("Zambia")
+  role              UserRole @default(CLIENT)
+  kycStatus         KycStatus @default(PENDING)
+  trustScore        Int      @default(70)
+  organizationName  String?
+  walletAddress     String?  @unique
+  isOrganizer       Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  organizedEvents   Event[] @relation("OrganizedEvents")
+  attendedEvents    EventAttendee[]
+  tickets           Ticket[]
+  purchases         Purchase[]
+  activityLogs      ActivityLog[]
+  merchandise       Merchandise[]
+  clientTasks       Task[] @relation("ClientTasks")
+  assignedTasks     Task[] @relation("AssignedTasks")
+  proofSubmissions  ProofSubmission[]
+  openedDisputes    Dispute[] @relation("OpenedDisputes")
+  assignedDisputes  Dispute[] @relation("AssignedDisputes")
+  reputationEvents  ReputationEvent[]
+  trustScoreRecords  TrustScore[]
+  agentProfile       AgentProfile?
+  
+  @@map("users")
+}
+
+model Event {
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  type            EventType
+  category        String
+  date            DateTime
+  duration        Int      // in minutes
+  location        String?
+  isVirtual       Boolean  @default(false)
+  virtualLink     String?
+  maxAttendees    Int?
+  price           Float    @default(0)
+  currency        String   @default("USD")
+  imageUrl        String?
+  tags            String?  // JSON string for array storage
+  status          EventStatus @default(DRAFT)
+  organizerId     String
+  templateId      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  organizer       User     @relation("OrganizedEvents", fields: [organizerId], references: [id])
+  attendees       EventAttendee[]
+  tickets         Ticket[]
+  merchandise     Merchandise[]
+  template        EventTemplate? @relation(fields: [templateId], references: [id])
+  activityLogs    ActivityLog[]
+  
+  @@map("events")
+}
+
+model EventTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  description     String
+  category        String
+  type            EventType
+  suggestedPrice  Float?
+  duration        Int
+  tags            String?  // JSON string for array storage
+  isPopular       Boolean  @default(false)
+  aiGenerated     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  events          Event[]
+  
+  @@map("event_templates")
+}
+
+model EventAttendee {
+  id              String   @id @default(cuid())
+  eventId         String
+  userId          String
+  registeredAt    DateTime @default(now())
+  checkedIn       Boolean  @default(false)
+  checkedInAt     DateTime?
+  
+  // Relations
+  event           Event    @relation(fields: [eventId], references: [id])
+  user            User     @relation(fields: [userId], references: [id])
+  
+  @@unique([eventId, userId])
+  @@map("event_attendees")
+}
+
+model Ticket {
+  id              String   @id @default(cuid())
+  eventId         String
+  ownerId         String
+  originalPrice   Float
+  currentPrice    Float
+  currency        String   @default("USD")
+  isForSale       Boolean  @default(false)
+  isNFT           Boolean  @default(false)
+  tokenId         String?
+  contractAddress String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  event           Event    @relation(fields: [eventId], references: [id])
+  owner           User     @relation(fields: [ownerId], references: [id])
+  purchases       Purchase[]
+  
+  @@map("tickets")
+}
+
+model Merchandise {
+  id              String   @id @default(cuid())
+  eventId         String?
+  name            String
+  description     String
+  price           Float
+  currency        String   @default("USD")
+  imageUrl        String?
+  inventory       Int
+  sellerId        String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  event           Event?   @relation(fields: [eventId], references: [id])
+  seller          User     @relation(fields: [sellerId], references: [id])
+  purchases       Purchase[]
+  
+  @@map("merchandise")
+}
+
+model Purchase {
+  id              String   @id @default(cuid())
+  buyerId         String
+  ticketId        String?
+  merchandiseId   String?
+  amount          Float
+  currency        String   @default("USD")
+  paymentMethod   String
+  transactionHash String?
+  status          PurchaseStatus @default(PENDING)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  buyer           User     @relation(fields: [buyerId], references: [id])
+  ticket          Ticket?  @relation(fields: [ticketId], references: [id])
+  merchandise     Merchandise? @relation(fields: [merchandiseId], references: [id])
+  
+  @@map("purchases")
+}
+
+model ActivityLog {
+  id              String   @id @default(cuid())
+  userId          String
+  action          String
+  entityType      String
+  entityId        String
+  metadata        String?  // JSON string
+  eventId         String?
+  taskId          String?
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  user            User     @relation(fields: [userId], references: [id])
+  event           Event?   @relation(fields: [eventId], references: [id])
+  task            Task?    @relation(fields: [taskId], references: [id])
+  
+  @@map("activity_logs")
+}
+
+model Task {
+  id                  String   @id @default(cuid())
+  title               String
+  description         String
+  deliverables        String   // JSON array of required deliverables
+  amount              Float
+  currency            String   @default("ZMW")
+  status              TaskStatus @default(DRAFT)
+  releaseThreshold    Int      @default(80)
+  riskLevel           String   @default("LOW")
+  paymentRail         String?
+  smartContractRef    String?
+  dueAt               DateTime?
+  clientId            String
+  assigneeId          String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  client              User     @relation("ClientTasks", fields: [clientId], references: [id])
+  assignee            User?    @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  milestones          Milestone[]
+  escrowAccount       EscrowAccount?
+  proofSubmissions    ProofSubmission[]
+  verificationResults VerificationResult[]
+  disputes            Dispute[]
+  activityLogs        ActivityLog[]
+  payments            Payment[]
+
+  @@map("tasks")
+}
+
+model Milestone {
+  id                String   @id @default(cuid())
+  taskId            String
+  title             String
+  description       String?
+  payoutPercent     Float    @default(100)
+  dueAt             DateTime?
+  status            MilestoneStatus @default(PENDING)
+  verificationRules String?  // JSON rules for proof and auto-release
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  task              Task     @relation(fields: [taskId], references: [id])
+  proofSubmissions  ProofSubmission[]
+
+  @@map("milestones")
+}
+
+model EscrowAccount {
+  id              String   @id @default(cuid())
+  taskId          String   @unique
+  balance         Float
+  currency        String   @default("ZMW")
+  status          String   @default("FUNDED")
+  providerRef     String?
+  contractAddress String?
+  fundedAt        DateTime?
+  releasedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  task            Task     @relation(fields: [taskId], references: [id])
+  transactions    EscrowTransaction[]
+
+  @@map("escrow_accounts")
+}
+
+model EscrowTransaction {
+  id              String   @id @default(cuid())
+  escrowAccountId String
+  type            EscrowTransactionType
+  amount          Float
+  currency        String   @default("ZMW")
+  status          EscrowTransactionStatus @default(PENDING)
+  provider        String?
+  externalRef     String?
+  metadata        String?
+  createdAt       DateTime @default(now())
+
+  escrowAccount   EscrowAccount @relation(fields: [escrowAccountId], references: [id])
+
+  @@map("escrow_transactions")
+}
+
+model ProofSubmission {
+  id                  String   @id @default(cuid())
+  taskId              String
+  milestoneId         String?
+  submittedById       String
+  type                ProofType @default(DOCUMENT)
+  notes               String
+  fileUrls            String?  // JSON array
+  fileHashes          String?  // JSON array
+  qrPayload           String?
+  metadata            String?
+  submittedAt         DateTime @default(now())
+
+  task                Task     @relation(fields: [taskId], references: [id])
+  milestone           Milestone? @relation(fields: [milestoneId], references: [id])
+  submittedBy         User     @relation(fields: [submittedById], references: [id])
+  verificationResults VerificationResult[]
+
+  @@map("task_proof_submissions")
+}
+
+model VerificationResult {
+  id                String   @id @default(cuid())
+  taskId            String
+  proofSubmissionId String?
+  score             Int
+  decision          VerificationDecision
+  explanation       String
+  signals           String   // JSON array of signal scores
+  fraudFlags        String?  // JSON array
+  model             String
+  createdAt         DateTime @default(now())
+
+  task              Task     @relation(fields: [taskId], references: [id])
+  proofSubmission   ProofSubmission? @relation(fields: [proofSubmissionId], references: [id])
+
+  @@map("task_verification_results")
+}
+
+model Dispute {
+  id                 String   @id @default(cuid())
+  taskId             String
+  openedById         String
+  assignedReviewerId String?
+  status             DisputeStatus @default(OPEN)
+  priority           DisputePriority @default(MEDIUM)
+  reason             String
+  evidenceSummary    String?
+  resolution         String?
+  payoutDecision     String?
+  openedAt           DateTime @default(now())
+  resolvedAt         DateTime?
+
+  task               Task     @relation(fields: [taskId], references: [id])
+  openedBy           User     @relation("OpenedDisputes", fields: [openedById], references: [id])
+  assignedReviewer   User?    @relation("AssignedDisputes", fields: [assignedReviewerId], references: [id])
+
+  @@map("disputes")
+}
+
+model ReputationEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  taskId      String?
+  type        ReputationEventType
+  delta       Int
+  reason      String
+  metadata    String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("reputation_events")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  taskId      String
+  amount      Float
+  currency    String   @default("ZMW")
+  type        EscrowTransactionType
+  status      EscrowTransactionStatus @default(PENDING)
+  provider    String?
+  reference   String?
+  metadata    String?
+  createdAt   DateTime @default(now())
+
+  task        Task     @relation(fields: [taskId], references: [id])
+
+  @@map("payments")
+}
+
+model TrustScore {
+  id          String   @id @default(cuid())
+  userId      String
+  taskId      String?
+  score       Int
+  delta       Int
+  reason      String
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("trust_scores")
+}
+
+model AgentProfile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  headline              String?
+  skillTags             String   @default("[]") // JSON array
+  totalTasksCompleted   Int      @default(0)
+  totalTasksAccepted    Int      @default(0)
+  totalTasksFailed      Int      @default(0)
+  totalDisputes         Int      @default(0)
+  completionRate        Float    @default(0)
+  disputeRate           Float    @default(0)
+  averageDeliveryHours  Float    @default(48)
+  reliabilityScore      Int      @default(70)
+  rankingScore          Float    @default(70)
+  recentActivity        String?
+  lastActiveAt          DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user                  User     @relation(fields: [userId], references: [id])
+
+  @@map("agent_profiles")
+}
+
+model GovernanceSubmission {
+  id                 String   @id @default(cuid())
+  agentName          String
+  agentType          String   @default("autonomous_agent")
+  taskTitle          String
+  taskRequirements   String   // JSON array of requirements
+  outputText         String
+  explanation        String
+  evidenceFiles      String   @default("[]") // JSON array of simulated file names
+  riskContext        String?
+  status             GovernanceDecision @default(REVIEW)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  verification       GovernanceVerification?
+  executions         GovernanceExecution[]
+  auditEvents        GovernanceAudit[]
+
+  @@map("submissions")
+}
+
+model GovernanceVerification {
+  id                   String   @id @default(cuid())
+  submissionId         String   @unique
+  completenessScore    Int
+  relevanceScore       Int
+  evidenceScore        Int
+  coherenceScore       Int
+  hallucinationRisk    Int
+  finalTrustScore      Int
+  decision             GovernanceDecision
+  explanation          String
+  flags                String   @default("[]") // JSON array
+  createdAt            DateTime @default(now())
+
+  submission           GovernanceSubmission @relation(fields: [submissionId], references: [id])
+
+  @@map("verification_results")
+}
+
+model GovernanceExecution {
+  id            String   @id @default(cuid())
+  submissionId  String
+  actionLabel   String
+  status        ExecutionGateStatus
+  reason        String
+  actor         String   @default("Agent Trust Gate")
+  createdAt     DateTime @default(now())
+
+  submission    GovernanceSubmission @relation(fields: [submissionId], references: [id])
+
+  @@map("execution_history")
+}
+
+model GovernanceAudit {
+  id            String   @id @default(cuid())
+  submissionId  String?
+  eventType     String
+  actor         String   @default("system")
+  details       String
+  createdAt     DateTime @default(now())
+
+  submission    GovernanceSubmission? @relation(fields: [submissionId], references: [id])
+
+  @@map("audit_logs")
+}
+
+enum EventType {
+  SOCIAL
+  CORPORATE
+  HYBRID
+  WORKSHOP
+  CONFERENCE
+  NETWORKING
+  ENTERTAINMENT
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum PurchaseStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum UserRole {
+  CLIENT
+  WORKER
+  AI_AGENT
+  REVIEWER
+  ADMIN
+}
+
+enum KycStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum TaskStatus {
+  DRAFT
+  ESCROW_FUNDED
+  IN_PROGRESS
+  PROOF_SUBMITTED
+  VERIFYING
+  APPROVED
+  REJECTED
+  DISPUTED
+  RELEASED
+  REFUNDED
+  CANCELLED
+}
+
+enum MilestoneStatus {
+  PENDING
+  ACTIVE
+  SUBMITTED
+  VERIFIED
+  DISPUTED
+  PAID
+}
+
+enum ProofType {
+  DOCUMENT
+  SCREENSHOT
+  DELIVERY_PHOTO
+  TEXT
+  FILE_COMPARISON
+  QR_SCAN
+  LINK
+  OTHER
+}
+
+enum VerificationDecision {
+  APPROVED
+  REVIEW
+  REJECTED
+}
+
+enum GovernanceDecision {
+  PASS
+  REVIEW
+  FAIL
+}
+
+enum ExecutionGateStatus {
+  EXECUTED
+  BLOCKED
+  OVERRIDDEN
+}
+
+enum EscrowTransactionType {
+  FUND
+  RELEASE
+  REFUND
+  SPLIT
+  FEE
+}
+
+enum EscrowTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum DisputeStatus {
+  OPEN
+  IN_REVIEW
+  NEEDS_MORE_EVIDENCE
+  RESOLVED
+  CANCELLED
+}
+
+enum DisputePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ReputationEventType {
+  TASK_APPROVED
+  TASK_REJECTED
+  DISPUTE_WON
+  DISPUTE_LOST
+  ON_TIME_DELIVERY
+  FRAUD_FLAG
+  REVIEW_RATING
+}
