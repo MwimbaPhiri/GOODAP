@@ -20,7 +20,7 @@ export function AgentTrustHeader() {
           </div>
           <div>
             <p className="text-lg font-black tracking-tight text-white">Agent Trust</p>
-            <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/70">Verified escrow</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/70">AI trust gate</p>
           </div>
         </Link>
 
@@ -38,10 +38,10 @@ export function AgentTrustHeader() {
 
         <div className="flex items-center gap-2">
           <Button asChild variant="ghost" className="hidden text-slate-200 hover:bg-white/10 hover:text-white sm:inline-flex">
-            <Link href="/login">Sign in</Link>
+            <Link href="/audit">Audit</Link>
           </Button>
           <Button asChild className="bg-emerald-400 text-slate-950 hover:bg-emerald-300">
-            <Link href="/tasks/new">Create task</Link>
+            <Link href="/submit">Verify output</Link>
           </Button>
         </div>
       </div>

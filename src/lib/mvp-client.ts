@@ -55,8 +55,8 @@ export async function apiRequest<T>(path: string, options?: RequestInit): Promis
 
 export function statusClasses(status: string) {
   const normalized = status.toUpperCase()
-  if (["APPROVED", "RELEASED", "VERIFIED", "PASS"].includes(normalized)) return "bg-emerald-400 text-slate-950"
-  if (["REJECTED", "FAIL", "CANCELLED"].includes(normalized)) return "bg-red-400 text-slate-950"
-  if (["DISPUTED", "NEEDS REVIEW"].includes(normalized)) return "bg-amber-300 text-slate-950"
+  if (["APPROVED", "RELEASED", "VERIFIED", "PASS", "EXECUTED", "OVERRIDDEN"].includes(normalized)) return "bg-emerald-400 text-slate-950"
+  if (["REJECTED", "FAIL", "CANCELLED", "BLOCKED"].includes(normalized)) return "bg-red-400 text-slate-950"
+  if (["DISPUTED", "NEEDS REVIEW", "REVIEW"].includes(normalized)) return "bg-amber-300 text-slate-950"
   return "bg-white/10 text-slate-200"
 }

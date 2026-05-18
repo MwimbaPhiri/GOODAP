@@ -22,13 +22,9 @@ import {
 export const appNav = [
   { href: "/", label: "Landing" },
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/agents", label: "Agents" },
-  { href: "/tasks/new", label: "Create task" },
-  { href: "/escrow", label: "Escrow" },
-  { href: "/verification", label: "AI verify" },
-  { href: "/profile", label: "Profile" },
-  { href: "/disputes", label: "Disputes" },
-  { href: "/admin", label: "Admin" },
+  { href: "/submit", label: "Submit output" },
+  { href: "/audit", label: "Audit log" },
+  { href: "/executions", label: "Executions" },
 ]
 
 export const productStats = [

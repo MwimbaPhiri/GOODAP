@@ -1,195 +1,141 @@
 # Agent Trust
 
-Agent Trust is a hackathon-ready MVP for AI-powered escrow and task verification. It helps clients, workers, freelancers, SMEs, delivery teams, and AI agents prove that work is complete before simulated escrow is released.
+Agent Trust is an AI safety and governance infrastructure MVP for autonomous AI agents.
 
-The MVP is intentionally simple and runnable locally:
+It is **not a fintech app**. It is a trust gate that sits between AI-generated outputs and real-world consequences. No AI agent output is trusted by default; every output must be verified before simulated execution is allowed.
 
-- Next.js + React frontend
-- Next.js API routes
-- Prisma + SQLite local backend
-- Supabase/Postgres schema included for hosted deployment planning
-- Email/password authentication
-- Task creation and acceptance
-- Simulated escrow payments
-- Proof submission with simulated file upload
-- Rule-based AI verification
-- Worker trust score updates
-- Top Trusted Agents marketplace
-- Agent ranking algorithm
-- Disputes, notifications/activity, and admin audit trail
+## What it demonstrates
 
-## Full folder structure
+- AI output submission interface
+- Rule-based verification engine
+- PASS / REVIEW / FAIL decisions
+- Execution gate that only executes PASS outputs
+- Human override for REVIEW cases
+- Full audit log for every decision
+- Dashboard for submissions, scores, blocked executions, and execution history
+
+## Project structure
 
 ```txt
-.
-├── prisma/
-│   └── schema.prisma                 # Local MVP database schema
-├── supabase/
-│   └── schema.sql                    # Supabase/Postgres version of core tables
-├── src/
-│   ├── app/
-│   │   ├── page.tsx                  # Landing page
-│   │   ├── login/page.tsx            # Register/login
-│   │   ├── dashboard/page.tsx        # Client, worker, AI agent, admin task dashboard
-│   │   ├── agents/
-│   │   │   ├── page.tsx              # Top Trusted Agents marketplace
-│   │   │   └── [id]/page.tsx         # Public agent profile and ranking details
-│   │   ├── tasks/
-│   │   │   ├── new/page.tsx          # Create escrow-backed task
-│   │   │   └── [id]/
-│   │   │       ├── page.tsx          # Task detail, accept, approve, dispute
-│   │   │       ├── submit/page.tsx   # Submit proof
-│   │   │       └── result/page.tsx   # Verification result
-│   │   ├── profile/page.tsx          # Current user's trust score profile
-│   │   ├── admin/page.tsx            # Payments, disputes, audit trail
-│   │   ├── disputes/page.tsx         # Dispute center
-│   │   ├── escrow/page.tsx           # Escrow concept page
-│   │   ├── verification/page.tsx     # Verification engine explainer
-│   │   └── api/
-│   │       ├── auth/register/route.ts
-│   │       ├── auth/login/route.ts
-│   │       ├── agents/route.ts
-│   │       ├── agents/[id]/route.ts
-│   │       ├── tasks/route.ts
-│   │       ├── tasks/[id]/route.ts
-│   │       ├── submissions/route.ts
-│   │       ├── verification/route.ts
-│   │       ├── escrow/route.ts
-│   │       ├── disputes/route.ts
-│   │       ├── users/[id]/route.ts
-│   │       └── activity/route.ts
-│   ├── components/
-│   │   ├── agent-trust/app-shell.tsx # Shared fintech layout and glass panels
-│   │   └── ui/                       # shadcn-style UI primitives
-│   └── lib/
-│       ├── db.ts                     # Prisma client
-│       ├── mvp-client.ts             # Browser session + API helper
-│       ├── agent-ranking.ts          # Marketplace ranking algorithm
-│       ├── agent-profile-service.ts  # Agent profile metric refresh helpers
-│       ├── security.ts               # Hashing, validation, rate limits
-│       ├── trust-scoring.ts          # Mock AI verification engine
-│       └── agent-trust-data.ts       # Landing/demo data
-├── package.json
-└── README.md
+src/app/
+  page.tsx                         Landing page for AI safety infrastructure
+  dashboard/page.tsx                Governance mission-control dashboard
+  submit/page.tsx                   AI output submission form
+  submissions/[id]/result/page.tsx  Verification result and human override
+  audit/page.tsx                    Audit log
+  executions/page.tsx               Execution history
+  api/submissions/route.ts          Create/list AI output submissions
+  api/submissions/[id]/route.ts     Submission detail + REVIEW override
+  api/governance/summary/route.ts   Dashboard, audit, execution summary
+src/components/agent-trust/
+  app-shell.tsx                     Shared dark governance shell
+src/lib/
+  governance-verification.ts        Core verification and scoring logic
+  mvp-client.ts                     Browser API helper and status colors
+prisma/schema.prisma                Local SQLite schema
+supabase/schema.sql                 Supabase/Postgres schema
 ```
 
-## Core MVP flow
+## Core flow
 
-1. Register as a `CLIENT`.
-2. Create a task from `/tasks/new`.
-3. The app creates:
-   - `tasks` row
-   - funded simulated escrow account
-   - `payments` row with type `FUND`
-   - audit log event
-4. Logout, then register/login as `WORKER` or `AI_AGENT`.
-5. Open `/dashboard`, accept the task, and submit proof.
-6. `/api/submissions` creates a `submissions` row and runs the trust scoring engine.
-7. The verifier returns:
-   - `PASS`
-   - `FAIL`
-   - `NEEDS REVIEW`
-8. Login as the client, open the task, then approve or dispute.
-9. Approval releases simulated escrow and increases the worker's trust score.
-10. Dispute creates a `disputes` row and appears in `/disputes` and `/admin`.
-11. Worker/AI-agent metrics update their `/agents` marketplace ranking.
+1. An AI agent submits an output:
+   - task title
+   - task requirements
+   - output text
+   - explanation
+   - supporting evidence filenames
+   - downstream action label
+2. Agent Trust scores the output for:
+   - completeness
+   - relevance
+   - evidence presence
+   - logical coherence
+   - hallucination risk
+3. The system returns:
+   - `PASS`: safe to execute
+   - `REVIEW`: uncertain, requires human oversight
+   - `FAIL`: unsafe or incomplete
+4. Execution gate:
+   - `PASS` creates an `EXECUTED` event
+   - `REVIEW` and `FAIL` create a `BLOCKED` event
+   - `REVIEW` can be manually overridden by a human reviewer
+5. Every step is recorded in `audit_logs`.
 
-## Database tables
+## Verification logic
 
-The MVP includes the requested core tables:
+Implemented in `src/lib/governance-verification.ts`.
+
+Scores:
+
+- `completenessScore`: how many task requirements are covered
+- `relevanceScore`: requirement match plus output depth
+- `evidenceScore`: supporting file presence
+- `coherenceScore`: contradiction detection
+- `hallucinationRisk`: risky language, uncertainty, missing evidence, thin explanations
+- `finalTrustScore`: weighted aggregate
+
+Decision thresholds:
+
+- `80-100`: `PASS`
+- `50-79`: `REVIEW`
+- `0-49`: `FAIL`
+
+## Database schema
+
+Core tables:
 
 - `users`
 - `tasks`
 - `submissions`
-- `payments`
-- `trust_scores`
-- `disputes`
-- `agent_profiles`
-
-It also includes supporting audit/escrow tables:
-
-- `escrow_accounts`
-- `escrow_transactions`
 - `verification_results`
-- `activity_logs`
-- `reputation_events`
-- `milestones`
+- `execution_history`
+- `audit_logs`
+
+The Prisma schema also retains older prototype tables, but the active AI governance MVP uses the dedicated governance models mapped to the tables above.
 
 ## API routes
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| `POST` | `/api/auth/register` | Register a user with email/password and role. |
-| `POST` | `/api/auth/login` | Login and return a safe user object for the browser session. |
-| `GET` | `/api/agents` | List ranked worker and AI-agent marketplace profiles. |
-| `GET` | `/api/agents/[id]` | Load one agent's profile, ranking explanation, metrics, and task history. |
-| `GET` | `/api/tasks` | List all tasks for dashboards. |
-| `POST` | `/api/tasks` | Create a task and simulated funded escrow. |
-| `GET` | `/api/tasks/[id]` | Load task detail with submissions, payments, verification, disputes, and audit logs. |
-| `PATCH` | `/api/tasks/[id]` | Accept, approve/release, or dispute a task. |
-| `POST` | `/api/submissions` | Submit proof and run mock AI verification. |
-| `POST` | `/api/verification` | Standalone verification endpoint. |
-| `POST` | `/api/escrow` | Simulate escrow movements. |
-| `GET/POST` | `/api/disputes` | Read or create disputes. |
-| `GET` | `/api/users/[id]` | Load profile and trust score history. |
-| `GET` | `/api/activity` | Admin audit, payment, and dispute data. |
+| `GET` | `/api/submissions` | List AI output submissions. |
+| `POST` | `/api/submissions` | Submit output, run verification, create execution gate event, write audit logs. |
+| `GET` | `/api/submissions/[id]` | Load one submission with verification, execution, and audit history. |
+| `PATCH` | `/api/submissions/[id]` | Human override for REVIEW submissions. |
+| `GET` | `/api/governance/summary` | Dashboard metrics, submissions, executions, and audit logs. |
 
-## Mock AI verification logic
+## Text architecture diagram
 
-Implemented in `src/lib/trust-scoring.ts`.
-
-Scoring signals:
-
-- Keyword matching against task deliverables
-- Completeness check
-- File presence check
-- Proof type variety
-- Text quality
-- Basic fraud flags
-
-Decision mapping:
-
-- `PASS`: score >= 80 and no serious fraud pattern
-- `NEEDS REVIEW`: score >= 58
-- `FAIL`: score < 58
-
-## Agent marketplace ranking logic
-
-Implemented in `src/lib/agent-ranking.ts`.
-
-Agent profiles are ranked with:
-
-- Trust score: 40%
-- Completion rate: 25%
-- Low dispute risk: 20%
-- Delivery speed: 10%
-- Experience bonus: up to 10 extra points
-
-Marketplace filters:
-
-- `Most Trusted`: highest ranking and trust score
-- `Fastest Delivery`: lowest average delivery hours
-- `Most Experienced`: highest completed task count
-- `Lowest Risk`: lowest dispute rate
-
-Agent profile metrics update when:
-
-- A worker/AI agent registers
-- A task is accepted
-- Proof is submitted
-- AI verification fails or needs review
-- A task is approved and escrow is released
-- A task enters dispute
+```txt
+AI Agent Output
+      |
+      v
+Submission API
+      |
+      v
+Verification Engine
+  - completeness
+  - relevance
+  - evidence
+  - coherence
+  - hallucination risk
+      |
+      v
+Decision: PASS / REVIEW / FAIL
+      |
+      +--> PASS   -> Execution Gate -> Simulated execution allowed -> Audit log
+      +--> REVIEW -> Execution Gate -> Blocked -> Human override possible -> Audit log
+      +--> FAIL   -> Execution Gate -> Blocked -> Audit log
+```
 
 ## Local setup
 
-Create a `.env` file:
+Create `.env`:
 
 ```bash
 DATABASE_URL="file:./custom.db"
 ```
 
-Install and prepare the database:
+Install and run:
 
 ```bash
 npm install
@@ -204,36 +150,31 @@ Open:
 http://localhost:3000
 ```
 
-Production build check:
+## Demo walkthrough
 
-```bash
-npx tsc --noEmit
-npm run build
-```
+1. Open `/`.
+2. Click **Submit AI output**.
+3. Enter:
+   - Agent: `OpsAgent-7`
+   - Requirements: `vendor identity, risk score, supporting documents, approval recommendation`
+   - Output: a detailed AI-generated recommendation
+   - Explanation: how the agent reached the result
+   - Evidence files: `vendor-report.pdf, risk-check.png`
+4. Submit to the trust gate.
+5. View the result:
+   - PASS executes
+   - REVIEW/FAIL blocks execution
+6. Open `/dashboard` to view the system overview.
+7. Open `/audit` to inspect every decision.
+8. Open `/executions` to see allowed, blocked, and overridden actions.
 
-## Demo script
+## Supabase deployment path
 
-1. Go to `/login`.
-2. Register `client@example.com` as `CLIENT`.
-3. Go to `/tasks/new` and create a task with deliverables like:
-   `landing page, hero copy, pricing card, WhatsApp CTA, screenshots`.
-4. Logout on `/dashboard`.
-5. Register `worker@example.com` as `WORKER`.
-6. Accept the open task.
-7. Submit proof with a detailed note and filenames:
-   `landing-page.png, mobile-screenshot.png, pricing-card.png`.
-8. Open the verification result.
-9. Login as the client and approve release, or dispute.
-10. Check `/profile`, `/disputes`, and `/admin`.
-11. Visit `/agents` to see ranked workers and `/agents/[id]` to inspect trust metrics.
-
-## Supabase path
-
-The runnable MVP uses Prisma + SQLite so it works immediately in local/browser preview. For Supabase:
+For a hosted backend:
 
 1. Create a Supabase project.
-2. Run `supabase/schema.sql` in the SQL editor.
-3. Replace the Prisma/SQLite calls with Supabase client calls or configure Prisma for Postgres.
-4. Use Supabase Auth for production-grade email/password sessions.
+2. Run `supabase/schema.sql`.
+3. Set Vercel `DATABASE_URL` to your hosted Postgres connection string.
+4. Configure Prisma for PostgreSQL if moving beyond the SQLite local demo.
 
-This keeps the hackathon demo low-friction while preserving a clear path to a hosted backend.
+The MVP is intentionally simple, but the architecture demonstrates a scalable AI governance trust layer for autonomous agent systems.

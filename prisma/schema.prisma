@@ -306,7 +306,7 @@ model ProofSubmission {
   submittedBy         User     @relation(fields: [submittedById], references: [id])
   verificationResults VerificationResult[]
 
-  @@map("submissions")
+  @@map("task_proof_submissions")
 }
 
 model VerificationResult {
@@ -324,7 +324,7 @@ model VerificationResult {
   task              Task     @relation(fields: [taskId], references: [id])
   proofSubmission   ProofSubmission? @relation(fields: [proofSubmissionId], references: [id])
 
-  @@map("verification_results")
+  @@map("task_verification_results")
 }
 
 model Dispute {
@@ -418,6 +418,73 @@ model AgentProfile {
   @@map("agent_profiles")
 }
 
+model GovernanceSubmission {
+  id                 String   @id @default(cuid())
+  agentName          String
+  agentType          String   @default("autonomous_agent")
+  taskTitle          String
+  taskRequirements   String   // JSON array of requirements
+  outputText         String
+  explanation        String
+  evidenceFiles      String   @default("[]") // JSON array of simulated file names
+  riskContext        String?
+  status             GovernanceDecision @default(REVIEW)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  verification       GovernanceVerification?
+  executions         GovernanceExecution[]
+  auditEvents        GovernanceAudit[]
+
+  @@map("submissions")
+}
+
+model GovernanceVerification {
+  id                   String   @id @default(cuid())
+  submissionId         String   @unique
+  completenessScore    Int
+  relevanceScore       Int
+  evidenceScore        Int
+  coherenceScore       Int
+  hallucinationRisk    Int
+  finalTrustScore      Int
+  decision             GovernanceDecision
+  explanation          String
+  flags                String   @default("[]") // JSON array
+  createdAt            DateTime @default(now())
+
+  submission           GovernanceSubmission @relation(fields: [submissionId], references: [id])
+
+  @@map("verification_results")
+}
+
+model GovernanceExecution {
+  id            String   @id @default(cuid())
+  submissionId  String
+  actionLabel   String
+  status        ExecutionGateStatus
+  reason        String
+  actor         String   @default("Agent Trust Gate")
+  createdAt     DateTime @default(now())
+
+  submission    GovernanceSubmission @relation(fields: [submissionId], references: [id])
+
+  @@map("execution_history")
+}
+
+model GovernanceAudit {
+  id            String   @id @default(cuid())
+  submissionId  String?
+  eventType     String
+  actor         String   @default("system")
+  details       String
+  createdAt     DateTime @default(now())
+
+  submission    GovernanceSubmission? @relation(fields: [submissionId], references: [id])
+
+  @@map("audit_logs")
+}
+
 enum EventType {
   SOCIAL
   CORPORATE
@@ -494,6 +561,18 @@ enum VerificationDecision {
   APPROVED
   REVIEW
   REJECTED
+}
+
+enum GovernanceDecision {
+  PASS
+  REVIEW
+  FAIL
+}
+
+enum ExecutionGateStatus {
+  EXECUTED
+  BLOCKED
+  OVERRIDDEN
 }
 
 enum EscrowTransactionType {

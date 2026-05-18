@@ -1,164 +1,142 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { SecurityUtils } from '@/lib/security'
-import { scoreVerificationEvidence } from '@/lib/trust-scoring'
-import { refreshAgentProfile } from '@/lib/agent-profile-service'
+import { verifyGovernanceSubmission } from '@/lib/governance-verification'
 
-const decisionToMvpStatus = {
-  approved: 'PASS',
-  review: 'NEEDS REVIEW',
-  rejected: 'FAIL',
-} as const
+export async function GET() {
+  try {
+    const submissions = await db.governanceSubmission.findMany({
+      include: {
+        verification: true,
+        executions: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })
+
+    return NextResponse.json({ submissions: submissions.map(normalizeSubmission) })
+  } catch (error) {
+    console.error('Governance submissions fetch error:', error)
+    return NextResponse.json({ error: 'Failed to load AI output submissions' }, { status: 500 })
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    const requirements = normalizeList(body.taskRequirements)
+    const evidenceFiles = normalizeList(body.evidenceFiles)
 
-    if (!body.taskId || !body.submittedById || !body.notes) {
-      return NextResponse.json({ error: 'taskId, submittedById, and notes are required' }, { status: 400 })
+    if (!body.agentName || !body.taskTitle || !body.outputText || !body.explanation || !requirements.length) {
+      return NextResponse.json(
+        { error: 'agentName, taskTitle, taskRequirements, outputText, and explanation are required' },
+        { status: 400 },
+      )
     }
 
-    const task = await db.task.findUnique({
-      where: { id: body.taskId },
-      include: { milestones: true },
+    const verification = verifyGovernanceSubmission({
+      taskRequirements: requirements,
+      outputText: String(body.outputText),
+      explanation: String(body.explanation),
+      evidenceFiles,
+      riskContext: body.riskContext ? String(body.riskContext) : null,
     })
-
-    if (!task) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
-    }
-
-    const fileNames = normalizeList(body.fileNames)
-    const proofTypes = normalizeList(body.proofTypes).length ? normalizeList(body.proofTypes) : ['text', fileNames.length ? 'file' : 'no-file']
-    const deliverables = parseJson<string[]>(task.deliverables, [])
-
-    const result = scoreVerificationEvidence({
-      taskTitle: task.title,
-      deliverables,
-      submittedText: body.notes,
-      fileNames,
-      proofTypes,
-      expectedKeywords: normalizeList(body.expectedKeywords),
-      submittedAt: new Date().toISOString(),
-      dueAt: task.dueAt?.toISOString(),
-    })
-
-    const nextStatus = result.decision === 'approved' ? 'APPROVED' : result.decision === 'review' ? 'DISPUTED' : 'REJECTED'
 
     const submission = await db.$transaction(async (tx) => {
-      const createdSubmission = await tx.proofSubmission.create({
+      const created = await tx.governanceSubmission.create({
         data: {
-          taskId: task.id,
-          milestoneId: body.milestoneId || task.milestones[0]?.id || null,
-          submittedById: body.submittedById,
-          type: fileNames.length ? 'DOCUMENT' : 'TEXT',
-          notes: SecurityUtils.sanitizeInput(body.notes),
-          fileUrls: JSON.stringify(fileNames.map((name) => `simulated-upload://${name}`)),
-          fileHashes: JSON.stringify(fileNames.map((name) => `hash-${Buffer.from(name).toString('hex').slice(0, 12)}`)),
-          metadata: JSON.stringify({ proofTypes, simulatedUpload: true }),
-        },
-      })
-
-      await tx.verificationResult.create({
-        data: {
-          taskId: task.id,
-          proofSubmissionId: createdSubmission.id,
-          score: result.score,
-          decision: result.decision.toUpperCase() as any,
-          explanation: result.explanation,
-          signals: JSON.stringify(result.signals),
-          fraudFlags: JSON.stringify(result.fraudFlags),
-          model: result.model,
-        },
-      })
-
-      await tx.task.update({
-        where: { id: task.id },
-        data: {
-          status: nextStatus as any,
-          riskLevel: result.decision === 'rejected' ? 'HIGH' : result.decision === 'review' ? 'MEDIUM' : 'LOW',
-        },
-      })
-
-      if (result.decision !== 'approved') {
-        await tx.dispute.create({
-          data: {
-            taskId: task.id,
-            openedById: task.clientId,
-            reason:
-              result.decision === 'review'
-                ? 'AI verification needs human review before escrow release.'
-                : 'AI verification failed and escrow remains locked.',
-            evidenceSummary: result.explanation,
-            priority: result.decision === 'rejected' ? 'HIGH' : 'MEDIUM',
+          agentName: String(body.agentName).slice(0, 140),
+          agentType: String(body.agentType || 'autonomous_agent').slice(0, 80),
+          taskTitle: String(body.taskTitle).slice(0, 180),
+          taskRequirements: JSON.stringify(requirements),
+          outputText: String(body.outputText),
+          explanation: String(body.explanation),
+          evidenceFiles: JSON.stringify(evidenceFiles),
+          riskContext: body.riskContext ? String(body.riskContext) : null,
+          status: verification.decision,
+          verification: {
+            create: {
+              completenessScore: verification.completenessScore,
+              relevanceScore: verification.relevanceScore,
+              evidenceScore: verification.evidenceScore,
+              coherenceScore: verification.coherenceScore,
+              hallucinationRisk: verification.hallucinationRisk,
+              finalTrustScore: verification.finalTrustScore,
+              decision: verification.decision,
+              explanation: verification.explanation,
+              flags: JSON.stringify(verification.flags),
+            },
           },
-        })
-
-        const delta = result.decision === 'rejected' ? -5 : -2
-        const worker = await tx.user.findUnique({ where: { id: body.submittedById }, select: { trustScore: true } })
-        const nextScore = Math.max(0, (worker?.trustScore ?? 70) + delta)
-        await tx.user.update({
-          where: { id: body.submittedById },
-          data: { trustScore: nextScore },
-        })
-        await tx.trustScore.create({
-          data: {
-            userId: body.submittedById,
-            taskId: task.id,
-            score: nextScore,
-            delta,
-            reason: result.decision === 'rejected' ? 'Submission failed AI verification.' : 'Submission requires dispute review.',
-          },
-        })
-        await tx.reputationEvent.create({
-          data: {
-            userId: body.submittedById,
-            taskId: task.id,
-            type: result.decision === 'rejected' ? 'TASK_REJECTED' : 'FRAUD_FLAG',
-            delta,
-            reason: result.decision === 'rejected' ? 'Submission failed AI verification' : 'Submission routed to review',
-          },
-        })
-      }
-
-      await tx.activityLog.create({
-        data: {
-          userId: body.submittedById,
-          action: 'SUBMIT_PROOF_AND_VERIFY',
-          entityType: 'SUBMISSION',
-          entityId: createdSubmission.id,
-          taskId: task.id,
-          metadata: JSON.stringify({ score: result.score, decision: decisionToMvpStatus[result.decision] }),
         },
       })
 
-      await refreshAgentProfile(
-        tx,
-        body.submittedById,
-        result.decision === 'approved'
-          ? 'Submitted proof that passed AI verification'
-          : result.decision === 'review'
-            ? 'Submitted proof that needs human review'
-            : 'Submitted proof that failed AI verification',
-      )
+      const executionStatus = verification.decision === 'PASS' ? 'EXECUTED' : 'BLOCKED'
+      await tx.governanceExecution.create({
+        data: {
+          submissionId: created.id,
+          actionLabel: body.actionLabel ? String(body.actionLabel).slice(0, 160) : 'Simulated workflow approval',
+          status: executionStatus,
+          reason:
+            verification.decision === 'PASS'
+              ? 'Trust gate passed; simulated downstream execution allowed.'
+              : `Trust gate returned ${verification.decision}; downstream execution blocked.`,
+        },
+      })
 
-      return createdSubmission
+      await tx.governanceAudit.createMany({
+        data: [
+          {
+            submissionId: created.id,
+            eventType: 'OUTPUT_SUBMITTED',
+            actor: created.agentName,
+            details: `Agent output submitted for "${created.taskTitle}".`,
+          },
+          {
+            submissionId: created.id,
+            eventType: 'VERIFICATION_DECISION',
+            actor: 'Agent Trust Verification Engine',
+            details: verification.explanation,
+          },
+          {
+            submissionId: created.id,
+            eventType: executionStatus === 'EXECUTED' ? 'EXECUTION_ALLOWED' : 'EXECUTION_BLOCKED',
+            actor: 'Agent Trust Execution Gate',
+            details: executionStatus === 'EXECUTED' ? 'Simulated action was executed.' : 'Simulated action was blocked.',
+          },
+        ],
+      })
+
+      return created
     })
 
-    return NextResponse.json({
-      submission,
-      verification: {
-        ...result,
-        status: decisionToMvpStatus[result.decision],
-      },
-    }, { status: 201 })
+    const fullSubmission = await db.governanceSubmission.findUnique({
+      where: { id: submission.id },
+      include: { verification: true, executions: { orderBy: { createdAt: 'desc' } }, auditEvents: { orderBy: { createdAt: 'desc' } } },
+    })
+
+    return NextResponse.json({ submission: normalizeSubmission(fullSubmission), verification }, { status: 201 })
   } catch (error) {
-    console.error('Submission error:', error)
-    return NextResponse.json({ error: 'Failed to submit proof' }, { status: 500 })
+    console.error('Governance submission error:', error)
+    return NextResponse.json({ error: 'Failed to submit AI output' }, { status: 500 })
+  }
+}
+
+function normalizeSubmission(submission: any) {
+  if (!submission) return null
+  return {
+    ...submission,
+    taskRequirements: parseJson(submission.taskRequirements, []),
+    evidenceFiles: parseJson(submission.evidenceFiles, []),
+    verification: submission.verification
+      ? {
+          ...submission.verification,
+          flags: parseJson(submission.verification.flags, []),
+        }
+      : null,
   }
 }
 
 function normalizeList(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(String).filter(Boolean)
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean)
   if (typeof value === 'string') {
     return value
       .split(',')

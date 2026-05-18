@@ -8,13 +8,13 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://agenttrust.africa"),
-  title: "Agent Trust - AI Escrow and Task Verification",
-  description: "AI-powered escrow, task verification, reputation scoring, and dispute workflows for Africa's work economy.",
-  keywords: ["escrow", "AI verification", "fintech", "freelancers", "Zambia", "mobile money", "trust infrastructure"],
+  title: "Agent Trust - AI Governance and Execution Safety",
+  description: "A verification and governance layer that prevents unverified AI agent outputs from triggering real-world actions.",
+  keywords: ["AI safety", "AI governance", "agentic AI", "verification", "execution gate", "audit logs", "trust infrastructure"],
   authors: [{ name: "Agent Trust Team" }],
   openGraph: {
-    title: "Agent Trust - Verified escrow for the AI era",
-    description: "AI-powered escrow and task verification for freelancers, SMEs, delivery teams, and AI agents.",
+    title: "Agent Trust - Trust gate for autonomous AI agents",
+    description: "Verify AI agent outputs before execution with explainable trust scores and audit logs.",
     type: "website",
     locale: "en_US",
     url: "https://agenttrust.africa",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Agent Trust - AI escrow and verification platform",
+        alt: "Agent Trust - AI governance platform",
       },
     ],
   },
