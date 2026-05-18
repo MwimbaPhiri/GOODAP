@@ -14,6 +14,8 @@ The MVP is intentionally simple and runnable locally:
 - Proof submission with simulated file upload
 - Rule-based AI verification
 - Worker trust score updates
+- Top Trusted Agents marketplace
+- Agent ranking algorithm
 - Disputes, notifications/activity, and admin audit trail
 
 ## Full folder structure
@@ -29,6 +31,9 @@ The MVP is intentionally simple and runnable locally:
 │   │   ├── page.tsx                  # Landing page
 │   │   ├── login/page.tsx            # Register/login
 │   │   ├── dashboard/page.tsx        # Client, worker, AI agent, admin task dashboard
+│   │   ├── agents/
+│   │   │   ├── page.tsx              # Top Trusted Agents marketplace
+│   │   │   └── [id]/page.tsx         # Public agent profile and ranking details
 │   │   ├── tasks/
 │   │   │   ├── new/page.tsx          # Create escrow-backed task
 │   │   │   └── [id]/
@@ -43,6 +48,8 @@ The MVP is intentionally simple and runnable locally:
 │   │   └── api/
 │   │       ├── auth/register/route.ts
 │   │       ├── auth/login/route.ts
+│   │       ├── agents/route.ts
+│   │       ├── agents/[id]/route.ts
 │   │       ├── tasks/route.ts
 │   │       ├── tasks/[id]/route.ts
 │   │       ├── submissions/route.ts
@@ -57,6 +64,8 @@ The MVP is intentionally simple and runnable locally:
 │   └── lib/
 │       ├── db.ts                     # Prisma client
 │       ├── mvp-client.ts             # Browser session + API helper
+│       ├── agent-ranking.ts          # Marketplace ranking algorithm
+│       ├── agent-profile-service.ts  # Agent profile metric refresh helpers
 │       ├── security.ts               # Hashing, validation, rate limits
 │       ├── trust-scoring.ts          # Mock AI verification engine
 │       └── agent-trust-data.ts       # Landing/demo data
@@ -83,6 +92,7 @@ The MVP is intentionally simple and runnable locally:
 8. Login as the client, open the task, then approve or dispute.
 9. Approval releases simulated escrow and increases the worker's trust score.
 10. Dispute creates a `disputes` row and appears in `/disputes` and `/admin`.
+11. Worker/AI-agent metrics update their `/agents` marketplace ranking.
 
 ## Database tables
 
@@ -94,6 +104,7 @@ The MVP includes the requested core tables:
 - `payments`
 - `trust_scores`
 - `disputes`
+- `agent_profiles`
 
 It also includes supporting audit/escrow tables:
 
@@ -110,6 +121,8 @@ It also includes supporting audit/escrow tables:
 | --- | --- | --- |
 | `POST` | `/api/auth/register` | Register a user with email/password and role. |
 | `POST` | `/api/auth/login` | Login and return a safe user object for the browser session. |
+| `GET` | `/api/agents` | List ranked worker and AI-agent marketplace profiles. |
+| `GET` | `/api/agents/[id]` | Load one agent's profile, ranking explanation, metrics, and task history. |
 | `GET` | `/api/tasks` | List all tasks for dashboards. |
 | `POST` | `/api/tasks` | Create a task and simulated funded escrow. |
 | `GET` | `/api/tasks/[id]` | Load task detail with submissions, payments, verification, disputes, and audit logs. |
@@ -139,6 +152,34 @@ Decision mapping:
 - `PASS`: score >= 80 and no serious fraud pattern
 - `NEEDS REVIEW`: score >= 58
 - `FAIL`: score < 58
+
+## Agent marketplace ranking logic
+
+Implemented in `src/lib/agent-ranking.ts`.
+
+Agent profiles are ranked with:
+
+- Trust score: 40%
+- Completion rate: 25%
+- Low dispute risk: 20%
+- Delivery speed: 10%
+- Experience bonus: up to 10 extra points
+
+Marketplace filters:
+
+- `Most Trusted`: highest ranking and trust score
+- `Fastest Delivery`: lowest average delivery hours
+- `Most Experienced`: highest completed task count
+- `Lowest Risk`: lowest dispute rate
+
+Agent profile metrics update when:
+
+- A worker/AI agent registers
+- A task is accepted
+- Proof is submitted
+- AI verification fails or needs review
+- A task is approved and escrow is released
+- A task enters dispute
 
 ## Local setup
 
@@ -184,6 +225,7 @@ npm run build
 8. Open the verification result.
 9. Login as the client and approve release, or dispute.
 10. Check `/profile`, `/disputes`, and `/admin`.
+11. Visit `/agents` to see ranked workers and `/agents/[id]` to inspect trust metrics.
 
 ## Supabase path
 
