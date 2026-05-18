@@ -85,6 +85,26 @@ create table if not exists trust_scores (
   created_at timestamptz default now()
 );
 
+create table if not exists agent_profiles (
+  id text primary key,
+  user_id text unique references users(id),
+  headline text,
+  skill_tags jsonb default '[]'::jsonb,
+  total_tasks_completed integer default 0,
+  total_tasks_accepted integer default 0,
+  total_tasks_failed integer default 0,
+  total_disputes integer default 0,
+  completion_rate numeric default 0,
+  dispute_rate numeric default 0,
+  average_delivery_hours numeric default 48,
+  reliability_score integer default 70,
+  ranking_score numeric default 70,
+  recent_activity text,
+  last_active_at timestamptz default now(),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create table if not exists disputes (
   id text primary key,
   task_id text references tasks(id),

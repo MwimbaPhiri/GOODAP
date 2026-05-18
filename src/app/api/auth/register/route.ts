@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await SecurityUtils.hashPassword(password)
     const normalizedRole = typeof role === 'string' ? role.toUpperCase() : 'CLIENT'
     const allowedRoles = ['CLIENT', 'WORKER', 'AI_AGENT', 'REVIEWER', 'ADMIN']
+    const selectedRole = allowedRoles.includes(normalizedRole) ? normalizedRole : 'CLIENT'
 
     // Create user
     const user = await db.user.create({
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
         walletAddress,
         phone: phone ? SecurityUtils.sanitizeInput(phone) : null,
         country: country ? SecurityUtils.sanitizeInput(country) : 'Zambia',
-        role: allowedRoles.includes(normalizedRole) ? normalizedRole as any : 'CLIENT',
+        role: selectedRole as any,
         organizationName: organizationName ? SecurityUtils.sanitizeInput(organizationName) : null,
         trustScoreRecords: {
           create: {
@@ -92,6 +93,15 @@ export async function POST(request: NextRequest) {
             reason: 'Starting trust score for new Agent Trust account.',
           },
         },
+        agentProfile: ['WORKER', 'AI_AGENT'].includes(selectedRole)
+          ? {
+              create: {
+                headline: selectedRole === 'AI_AGENT' ? 'AI work agent with verification-ready outputs' : 'Verified Agent Trust worker',
+                skillTags: JSON.stringify(selectedRole === 'AI_AGENT' ? ['analysis', 'data entry', 'automation', 'research'] : ['writing', 'design', 'delivery', 'analysis']),
+                recentActivity: 'Joined Agent Trust marketplace',
+              },
+            }
+          : undefined,
       },
       select: {
         id: true,

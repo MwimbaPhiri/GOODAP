@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { activeTasks } from '@/lib/agent-trust-data'
 import { SecurityUtils, rateLimiters } from '@/lib/security'
+import { ensureAgentProfile, refreshAgentProfile } from '@/lib/agent-profile-service'
 
 export async function GET(request: NextRequest) {
   try {
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
         dueAt: body.dueAt ? new Date(body.dueAt) : null,
         clientId: body.clientId,
         assigneeId: body.assigneeId || null,
-        status: body.fundEscrow ? 'ESCROW_FUNDED' : 'DRAFT',
+        status: body.assigneeId ? 'IN_PROGRESS' : body.fundEscrow ? 'ESCROW_FUNDED' : 'DRAFT',
         milestones: {
           create: (body.milestones?.length ? body.milestones : [{ title: 'Verified completion', payoutPercent: 100 }]).map((milestone: any) => ({
             title: SecurityUtils.sanitizeInput(milestone.title),
@@ -133,6 +134,14 @@ export async function POST(request: NextRequest) {
         metadata: JSON.stringify({ amount, currency, releaseThreshold }),
       },
     })
+
+    if (body.assigneeId) {
+      await db.$transaction(async (tx) => {
+        const assignee = await tx.user.findUnique({ where: { id: body.assigneeId }, select: { role: true } })
+        await ensureAgentProfile(tx, body.assigneeId, assignee?.role)
+        await refreshAgentProfile(tx, body.assigneeId, 'Received a direct client task from the marketplace')
+      })
+    }
 
     return NextResponse.json({ message: 'Task created successfully', task }, { status: 201 })
   } catch (error) {

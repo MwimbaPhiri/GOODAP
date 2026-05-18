@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { SecurityUtils } from '@/lib/security'
+import { ensureAgentProfile, refreshAgentProfile } from '@/lib/agent-profile-service'
 
 type RouteContext = {
   params: Promise<{ id: string }>
@@ -63,12 +64,17 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         return NextResponse.json({ error: 'userId is required to accept a task' }, { status: 400 })
       }
 
-      await db.task.update({
-        where: { id },
-        data: {
-          assigneeId: body.userId,
-          status: 'IN_PROGRESS',
-        },
+      await db.$transaction(async (tx) => {
+        const user = await tx.user.findUnique({ where: { id: body.userId }, select: { role: true } })
+        await ensureAgentProfile(tx, body.userId, user?.role)
+        await tx.task.update({
+          where: { id },
+          data: {
+            assigneeId: body.userId,
+            status: 'IN_PROGRESS',
+          },
+        })
+        await refreshAgentProfile(tx, body.userId, 'Accepted a new escrow-backed task')
       })
 
       await logTaskAction(body.userId, id, 'ACCEPT_TASK', { previousStatus: task.status })
@@ -144,6 +150,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             reason: 'Task approved by client',
           },
         })
+
+        await refreshAgentProfile(tx, task.assigneeId!, 'Completed a verified task and received escrow release')
       })
 
       await logTaskAction(body.userId || task.clientId, id, 'APPROVE_AND_RELEASE', { amount: task.amount, currency: task.currency })
@@ -168,6 +176,34 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             priority: 'HIGH',
           },
         })
+
+        if (task.assigneeId) {
+          const worker = await tx.user.findUnique({ where: { id: task.assigneeId }, select: { trustScore: true } })
+          const nextScore = Math.max(0, (worker?.trustScore ?? 70) - 3)
+          await tx.user.update({
+            where: { id: task.assigneeId },
+            data: { trustScore: nextScore },
+          })
+          await tx.trustScore.create({
+            data: {
+              userId: task.assigneeId,
+              taskId: id,
+              score: nextScore,
+              delta: -3,
+              reason: 'Task entered dispute review.',
+            },
+          })
+          await tx.reputationEvent.create({
+            data: {
+              userId: task.assigneeId,
+              taskId: id,
+              type: 'FRAUD_FLAG',
+              delta: -3,
+              reason: 'Dispute opened on task',
+            },
+          })
+          await refreshAgentProfile(tx, task.assigneeId, 'Task entered dispute review')
+        }
       })
 
       await logTaskAction(body.userId || task.clientId, id, 'OPEN_DISPUTE', { reason })

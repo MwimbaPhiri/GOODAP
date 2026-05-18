@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { SecurityUtils } from '@/lib/security'
 import { scoreVerificationEvidence } from '@/lib/trust-scoring'
+import { refreshAgentProfile } from '@/lib/agent-profile-service'
 
 const decisionToMvpStatus = {
   approved: 'PASS',
@@ -78,6 +79,47 @@ export async function POST(request: NextRequest) {
         },
       })
 
+      if (result.decision !== 'approved') {
+        await tx.dispute.create({
+          data: {
+            taskId: task.id,
+            openedById: task.clientId,
+            reason:
+              result.decision === 'review'
+                ? 'AI verification needs human review before escrow release.'
+                : 'AI verification failed and escrow remains locked.',
+            evidenceSummary: result.explanation,
+            priority: result.decision === 'rejected' ? 'HIGH' : 'MEDIUM',
+          },
+        })
+
+        const delta = result.decision === 'rejected' ? -5 : -2
+        const worker = await tx.user.findUnique({ where: { id: body.submittedById }, select: { trustScore: true } })
+        const nextScore = Math.max(0, (worker?.trustScore ?? 70) + delta)
+        await tx.user.update({
+          where: { id: body.submittedById },
+          data: { trustScore: nextScore },
+        })
+        await tx.trustScore.create({
+          data: {
+            userId: body.submittedById,
+            taskId: task.id,
+            score: nextScore,
+            delta,
+            reason: result.decision === 'rejected' ? 'Submission failed AI verification.' : 'Submission requires dispute review.',
+          },
+        })
+        await tx.reputationEvent.create({
+          data: {
+            userId: body.submittedById,
+            taskId: task.id,
+            type: result.decision === 'rejected' ? 'TASK_REJECTED' : 'FRAUD_FLAG',
+            delta,
+            reason: result.decision === 'rejected' ? 'Submission failed AI verification' : 'Submission routed to review',
+          },
+        })
+      }
+
       await tx.activityLog.create({
         data: {
           userId: body.submittedById,
@@ -88,6 +130,16 @@ export async function POST(request: NextRequest) {
           metadata: JSON.stringify({ score: result.score, decision: decisionToMvpStatus[result.decision] }),
         },
       })
+
+      await refreshAgentProfile(
+        tx,
+        body.submittedById,
+        result.decision === 'approved'
+          ? 'Submitted proof that passed AI verification'
+          : result.decision === 'review'
+            ? 'Submitted proof that needs human review'
+            : 'Submitted proof that failed AI verification',
+      )
 
       return createdSubmission
     })

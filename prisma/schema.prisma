@@ -45,6 +45,7 @@ model User {
   assignedDisputes  Dispute[] @relation("AssignedDisputes")
   reputationEvents  ReputationEvent[]
   trustScoreRecords  TrustScore[]
+  agentProfile       AgentProfile?
   
   @@map("users")
 }
@@ -391,6 +392,30 @@ model TrustScore {
   user        User     @relation(fields: [userId], references: [id])
 
   @@map("trust_scores")
+}
+
+model AgentProfile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  headline              String?
+  skillTags             String   @default("[]") // JSON array
+  totalTasksCompleted   Int      @default(0)
+  totalTasksAccepted    Int      @default(0)
+  totalTasksFailed      Int      @default(0)
+  totalDisputes         Int      @default(0)
+  completionRate        Float    @default(0)
+  disputeRate           Float    @default(0)
+  averageDeliveryHours  Float    @default(48)
+  reliabilityScore      Int      @default(70)
+  rankingScore          Float    @default(70)
+  recentActivity        String?
+  lastActiveAt          DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user                  User     @relation(fields: [userId], references: [id])
+
+  @@map("agent_profiles")
 }
 
 enum EventType {

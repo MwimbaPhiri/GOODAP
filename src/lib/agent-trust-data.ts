@@ -22,6 +22,7 @@ import {
 export const appNav = [
   { href: "/", label: "Landing" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/agents", label: "Agents" },
   { href: "/tasks/new", label: "Create task" },
   { href: "/escrow", label: "Escrow" },
   { href: "/verification", label: "AI verify" },
@@ -279,6 +280,7 @@ export const adminKpis = [
 export const pageTiles = [
   { href: "/login", title: "Login/signup", icon: LockKeyhole, copy: "Role-aware onboarding for clients, workers, reviewers, and AI agents." },
   { href: "/dashboard", title: "Dashboard", icon: LayoutDashboard, copy: "Escrow balances, task state, notifications, and verification activity." },
+  { href: "/agents", title: "Top trusted agents", icon: UserRoundCheck, copy: "Browse ranked workers and AI agents by trust, speed, experience, and risk." },
   { href: "/tasks/new", title: "Create task", icon: BriefcaseBusiness, copy: "Deliverables, milestones, payout amount, currency, and verification rules." },
   { href: "/escrow", title: "Escrow/payment", icon: WalletCards, copy: "Funds locked, released, refunded, and synced to mobile money concepts." },
   { href: "/verification", title: "Verification", icon: Bot, copy: "Explainable AI proof analysis with completion score and fraud indicators." },

@@ -21,12 +21,14 @@ const milestones = [
 
 export default function CreateTaskPage() {
   const router = useRouter()
+  const [invitedAgentId, setInvitedAgentId] = useState<string | null>(null)
   const [user, setUser] = useState<MvpUser | null>(null)
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     setUser(getStoredUser())
+    setInvitedAgentId(new URLSearchParams(window.location.search).get("agentId"))
   }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -55,6 +57,7 @@ export default function CreateTaskPage() {
             .map((item) => item.trim())
             .filter(Boolean),
           clientId: user.id,
+          assigneeId: invitedAgentId || undefined,
           fundEscrow: true,
           milestones: [{ title: "Verified completion", payoutPercent: 100 }],
         }),
@@ -81,6 +84,11 @@ export default function CreateTaskPage() {
             </div>
           )}
           {message && <div className="mb-5 rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-100">{message}</div>}
+          {invitedAgentId && (
+            <div className="mb-5 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 p-4 text-sm text-emerald-100">
+              This task will be assigned to the selected marketplace agent after creation.
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="title">Task title</Label>
