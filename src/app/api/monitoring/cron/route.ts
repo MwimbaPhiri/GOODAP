@@ -15,7 +15,7 @@ async function handle(req: NextRequest) {
   if (secret && provided !== secret) return fail(401, "Unauthorized");
 
   const orgs = await db.organization.findMany({ select: { id: true, name: true } });
-  const results = [];
+  const results: Array<{ org: string; created?: number; alerts?: number; error?: string }> = [];
   for (const org of orgs) {
     try {
       const summary = await runCollectionForOrg(org.id, { perSourceLimit: 15 });
