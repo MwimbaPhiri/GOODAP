@@ -1,0 +1,492 @@
+// MediaPulse AI — Prisma schema
+//
+// NOTE ON DATABASE PROVIDER
+// -------------------------
+// This project is designed for PostgreSQL in production (Supabase / Neon / RDS).
+// For a zero-config local/demo experience it ships with SQLite so the app runs
+// out of the box.
+//
+// The `provider` below is selected AUTOMATICALLY from DATABASE_URL by
+// `scripts/prepare-db.mjs` (run on postinstall and `vercel-build`): a
+// `postgres://` URL switches it to "postgresql", otherwise it stays "sqlite".
+// So deploying to Vercel only requires setting a Postgres DATABASE_URL.
+//
+// The schema deliberately avoids native enums and native array columns so the
+// exact same models work on both engines. Enumerated values are stored as
+// strings and validated in the application layer (see src/lib/constants.ts),
+// and list values are stored as JSON strings.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & Access
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String?
+  passwordHash    String?
+  avatar          String?
+  jobTitle        String?
+  phone           String?
+  timezone        String    @default("UTC")
+  locale          String    @default("en")
+  emailVerified   DateTime?
+  lastLoginAt     DateTime?
+  isActive        Boolean   @default(true)
+  isSuperAdmin    Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  memberships     Membership[]
+  sessions        Session[]
+  invitationsSent Invitation[]  @relation("InvitedBy")
+  conversations   Conversation[]
+  reports         Report[]
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+
+  @@map("users")
+}
+
+// Long-lived refresh sessions (JWT access tokens are stateless & short-lived).
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  tokenHash    String   @unique
+  userAgent    String?
+  ip           String?
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// Email verification & password reset tokens.
+model VerificationToken {
+  id         String   @id @default(cuid())
+  identifier String   // email
+  tokenHash  String   @unique
+  purpose    String   // EMAIL_VERIFY | PASSWORD_RESET
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, purpose])
+  @@map("verification_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Organizations & structure
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  logoUrl           String?
+  website           String?
+  industry          String?
+  country           String?
+  description       String?
+  plan              String   @default("PRO") // FREE | PRO | ENTERPRISE
+  // Monitoring preferences stored as JSON (frequency, languages, countries, ...)
+  monitoringConfig  String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  memberships    Membership[]
+  invitations    Invitation[]
+  departments    Department[]
+  brands         Brand[]
+  products       Product[]
+  keywords       Keyword[]
+  articles       Article[]
+  sources        Source[]
+  alerts         Alert[]
+  reports        Report[]
+  competitors    Competitor[]
+  conversations  Conversation[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+
+  @@map("organizations")
+}
+
+// A user's role within an organization (RBAC boundary).
+model Membership {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  role           String   @default("VIEWER") // ADMINISTRATOR | ORG_MANAGER | COMMS_OFFICER | ANALYST | VIEWER
+  departmentId   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  department     Department?  @relation(fields: [departmentId], references: [id])
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("memberships")
+}
+
+model Invitation {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String
+  role           String   @default("VIEWER")
+  tokenHash      String   @unique
+  invitedById    String?
+  status         String   @default("PENDING") // PENDING | ACCEPTED | REVOKED | EXPIRED
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy      User?        @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("invitations")
+}
+
+model Department {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships    Membership[]
+
+  @@index([organizationId])
+  @@map("departments")
+}
+
+model Brand {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  logoUrl        String?
+  description    String?
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products       Product[]
+
+  @@index([organizationId])
+  @@map("brands")
+}
+
+model Product {
+  id             String   @id @default(cuid())
+  organizationId String
+  brandId        String?
+  name           String
+  description    String?
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  brand          Brand?       @relation(fields: [brandId], references: [id])
+
+  @@index([organizationId])
+  @@map("products")
+}
+
+// ---------------------------------------------------------------------------
+// Monitoring configuration
+// ---------------------------------------------------------------------------
+
+model Keyword {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  term               String
+  type               String   @default("COMPANY") // COMPANY | PRODUCT | CEO | CAMPAIGN | INDUSTRY | CUSTOM
+  booleanQuery       String?
+  includeKeywords    String?  // JSON array of strings
+  excludeKeywords    String?  // JSON array of strings
+  country            String?
+  language           String   @default("en")
+  priority           String   @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  status             String   @default("ACTIVE")  // ACTIVE | PAUSED | ARCHIVED
+  frequency          String   @default("HOURLY")  // REALTIME | HOURLY | DAILY | WEEKLY
+  lastRunAt          DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  matches            ArticleKeyword[]
+
+  @@index([organizationId])
+  @@map("keywords")
+}
+
+// A media source / publication.
+model Source {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  type           String   @default("RSS") // RSS | GOOGLE_NEWS | SCRAPER | API | SOCIAL | TV | RADIO
+  url            String
+  faviconUrl     String?
+  country        String?
+  language       String?
+  domainAuthority Int?    // proxy for reach/credibility (0-100)
+  enabled        Boolean  @default(true)
+  lastFetchedAt  DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  articles       Article[]
+
+  @@index([organizationId])
+  @@map("sources")
+}
+
+// ---------------------------------------------------------------------------
+// Collected media
+// ---------------------------------------------------------------------------
+
+model Article {
+  id             String   @id @default(cuid())
+  organizationId String
+  sourceId       String?
+  competitorId   String?
+  // A stable hash (url + normalized title) used to de-duplicate.
+  dedupeHash     String
+  title          String
+  author         String?
+  publication    String?
+  url            String
+  imageUrl       String?
+  content        String?
+  excerpt        String?
+  language       String?
+  country        String?
+  publishedAt    DateTime?
+  collectedAt    DateTime @default(now())
+
+  // Analysis (denormalized for fast dashboard aggregation)
+  sentiment      String?  // POSITIVE | NEUTRAL | NEGATIVE
+  sentimentScore Float?   // -1..1
+  confidence     Float?   // 0..1
+  riskLevel      String?  // LOW | MEDIUM | HIGH | CRITICAL
+  category       String?
+  readingTime    Int?     // minutes
+  reach          Int?     // estimated reach / impressions
+  topics         String?  // JSON array
+  aiSummary      String?
+  suggestedPr    String?  // suggested PR response
+  suggestedPost  String?  // suggested social post
+  analyzedAt     DateTime?
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  source         Source?      @relation(fields: [sourceId], references: [id])
+  competitor     Competitor?  @relation(fields: [competitorId], references: [id])
+  entities       Entity[]
+  keywords       ArticleKeyword[]
+
+  @@unique([organizationId, dedupeHash])
+  @@index([organizationId, publishedAt])
+  @@index([organizationId, sentiment])
+  @@index([organizationId, competitorId])
+  @@map("articles")
+}
+
+model Entity {
+  id        String  @id @default(cuid())
+  articleId String
+  name      String
+  type      String  // PERSON | ORG | EXECUTIVE | LOCATION | PRODUCT | MISC
+  salience  Float?  // 0..1
+
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+  @@map("entities")
+}
+
+// Join table between articles and the keywords they matched.
+model ArticleKeyword {
+  id        String  @id @default(cuid())
+  articleId String
+  keywordId String
+
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  keyword   Keyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, keywordId])
+  @@map("article_keywords")
+}
+
+// ---------------------------------------------------------------------------
+// Competitors
+// ---------------------------------------------------------------------------
+
+model Competitor {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  logoUrl        String?
+  website        String?
+  keywords       String?  // JSON array of terms used to attribute coverage
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  articles       Article[]
+
+  @@index([organizationId])
+  @@map("competitors")
+}
+
+// ---------------------------------------------------------------------------
+// Alerts & notifications
+// ---------------------------------------------------------------------------
+
+model Alert {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  type           String   // NEGATIVE_SENTIMENT | KEYWORD_SPIKE | COMPETITOR_ACTIVITY | PUBLICATION | BREAKING_NEWS
+  condition      String?  // JSON: thresholds, keywords, publications, ...
+  channels       String?  // JSON array: EMAIL | BROWSER | DIGEST_DAILY | DIGEST_WEEKLY
+  enabled        Boolean  @default(true)
+  lastTriggeredAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  events         AlertEvent[]
+
+  @@index([organizationId])
+  @@map("alerts")
+}
+
+model AlertEvent {
+  id        String   @id @default(cuid())
+  alertId   String
+  title     String
+  message   String?
+  severity  String   @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  articleId String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  alert     Alert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@index([alertId])
+  @@map("alert_events")
+}
+
+model Notification {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  title          String
+  body           String?
+  type           String   @default("SYSTEM") // SYSTEM | ALERT | REPORT | MENTION | INVITE
+  link           String?
+  read           Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("notifications")
+}
+
+// ---------------------------------------------------------------------------
+// Reports & AI
+// ---------------------------------------------------------------------------
+
+model Report {
+  id             String   @id @default(cuid())
+  organizationId String
+  createdById    String?
+  title          String
+  type           String   @default("EXECUTIVE") // EXECUTIVE | COVERAGE | SENTIMENT | COMPETITOR | CUSTOM
+  periodStart    DateTime
+  periodEnd      DateTime
+  status         String   @default("READY") // GENERATING | READY | FAILED
+  // The full generated payload (summary, sections, chart data, tables) as JSON.
+  data           String?
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User?        @relation(fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@map("reports")
+}
+
+model Conversation {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  title          String   @default("New conversation")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages       Message[]
+
+  @@index([organizationId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String   // user | assistant | system
+  content        String
+  // Retrieved article ids used as RAG context, JSON array.
+  citations      String?
+  createdAt      DateTime @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String?
+  action         String
+  entityType     String?
+  entityId       String?
+  metadata       String?  // JSON
+  ip             String?
+  createdAt      DateTime @default(now())
+
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("audit_logs")
+}
