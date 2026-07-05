@@ -1,29 +1,27 @@
-import { Server } from 'socket.io';
+import { Server, Socket } from "socket.io";
 
+/**
+ * Realtime layer for MediaPulse AI.
+ *
+ * Clients join a room per organization so the monitoring engine can push live
+ * alerts and new-coverage events. (When deployed to a serverless platform like
+ * Vercel the custom server is not used and the UI falls back to polling.)
+ */
 export const setupSocket = (io: Server) => {
-  io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
-    
-    // Handle messages
-    socket.on('message', (msg: { text: string; senderId: string }) => {
-      // Echo: broadcast message only the client who send the message
-      socket.emit('message', {
-        text: `Echo: ${msg.text}`,
-        senderId: 'system',
-        timestamp: new Date().toISOString(),
-      });
+  io.on("connection", (socket: Socket) => {
+    socket.on("org:join", (organizationId: string) => {
+      if (typeof organizationId === "string" && organizationId) {
+        socket.join(`org:${organizationId}`);
+      }
     });
 
-    // Handle disconnect
-    socket.on('disconnect', () => {
-      console.log('Client disconnected:', socket.id);
-    });
-
-    // Send welcome message
-    socket.emit('message', {
-      text: 'Welcome to WebSocket Echo Server!',
-      senderId: 'system',
-      timestamp: new Date().toISOString(),
+    socket.on("org:leave", (organizationId: string) => {
+      socket.leave(`org:${organizationId}`);
     });
   });
 };
+
+/** Broadcast a realtime event to everyone in an organization. */
+export function emitToOrg(io: Server, organizationId: string, event: string, payload: unknown) {
+  io.to(`org:${organizationId}`).emit(event, payload);
+}

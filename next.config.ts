@@ -1,32 +1,20 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  // Enable proper hot reloading but optimize for development
   reactStrictMode: true,
-  // Fix cross-origin issue for preview
-  allowedDevOrigins: ['preview-chat-b3329655-0eb7-4a73-839e-beeb4cbd8b6b.space.z.ai'],
-  // Optimize webpack for development
-  webpack: (config, { dev }) => {
-    if (dev) {
-      // Optimize for development performance
-      config.watchOptions = {
-        poll: 1000,
-        aggregateTimeout: 300,
-        ignored: ['**/node_modules/**', '**/.git/**', '**/.next/**'],
-      };
-    }
-    return config;
+  // Type errors are enforced at build time (see `npm run lint` / `tsc`).
+  typescript: {
+    ignoreBuildErrors: false,
   },
+  // Linting is run separately in CI to keep builds fast.
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Optimize experimental features
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "**" }],
+  },
   experimental: {
-    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+    optimizePackageImports: ["lucide-react", "recharts", "date-fns"],
   },
 };
 
