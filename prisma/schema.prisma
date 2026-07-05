@@ -4,10 +4,13 @@
 // -------------------------
 // This project is designed for PostgreSQL in production (Supabase / Neon / RDS).
 // For a zero-config local/demo experience it ships with SQLite so the app runs
-// out of the box. To move to PostgreSQL:
-//   1. Change `provider` below to "postgresql".
-//   2. Point DATABASE_URL at your Postgres instance.
-//   3. Run `npm run db:push` (or `prisma migrate deploy`).
+// out of the box.
+//
+// The `provider` below is selected AUTOMATICALLY from DATABASE_URL by
+// `scripts/prepare-db.mjs` (run on postinstall and `vercel-build`): a
+// `postgres://` URL switches it to "postgresql", otherwise it stays "sqlite".
+// So deploying to Vercel only requires setting a Postgres DATABASE_URL.
+//
 // The schema deliberately avoids native enums and native array columns so the
 // exact same models work on both engines. Enumerated values are stored as
 // strings and validated in the application layer (see src/lib/constants.ts),

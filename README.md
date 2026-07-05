@@ -83,13 +83,49 @@ See [`.env.example`](./.env.example). Key ones:
 - `CRON_SECRET` — bearer token protecting the scheduled monitoring endpoint.
 - `REDIS_URL` — optional; swap the in-memory cache for Redis.
 
-## 🗄️ Switching to PostgreSQL
+## 🗄️ Databases (SQLite ⇄ PostgreSQL)
 
-1. In `prisma/schema.prisma` set `provider = "postgresql"`.
-2. Point `DATABASE_URL` at your Postgres/Supabase instance.
-3. `npm run db:push` (or `prisma migrate deploy`).
+The Prisma datasource provider is chosen **automatically** from `DATABASE_URL`
+by `scripts/prepare-db.mjs` (runs on `postinstall` and `vercel-build`):
+
+- No/`file:` URL → **SQLite** (local zero-config demo)
+- `postgres://…` URL → **PostgreSQL** (production)
 
 The schema avoids native enums/array columns, so the same models run on both engines.
+
+## ▲ Deploy to Vercel
+
+The repo is Vercel-ready. Vercel does not run the custom `server.ts` (Socket.IO);
+the app runs as serverless functions and the UI falls back to polling for
+notifications — everything else works unchanged. **A PostgreSQL database is
+required** (Vercel's filesystem is read-only, so SQLite can't be used in prod).
+
+1. **Create a Postgres database** — e.g. [Vercel Postgres](https://vercel.com/storage/postgres), [Neon](https://neon.tech) or [Supabase](https://supabase.com). Copy its connection string.
+2. **Import the repo** into Vercel (New Project → import this GitHub repo). Framework is auto-detected as Next.js.
+3. **Add environment variables** in Project → Settings → Environment Variables:
+
+   | Variable | Value |
+   |----------|-------|
+   | `DATABASE_URL` | your `postgres://…` connection string (**required**) |
+   | `JWT_SECRET` | a strong random string (`openssl rand -base64 48`) |
+   | `CRON_SECRET` | a random string (protects the cron endpoint) |
+   | `NEXT_PUBLIC_APP_URL` | your deployment URL, e.g. `https://your-app.vercel.app` |
+   | `OPENAI_API_KEY` | *(optional)* enables LLM-enhanced AI features |
+
+4. **Deploy.** The `vercel-build` script runs `prisma db push` to create the
+   schema, then `next build`. `vercel.json` registers an hourly monitoring cron
+   (Vercel automatically sends `Authorization: Bearer $CRON_SECRET`).
+5. **(Optional) Seed demo data** — from your machine with the production
+   `DATABASE_URL` exported: `npm run db:seed`.
+
+CLI alternative:
+
+```bash
+npm i -g vercel
+vercel link
+vercel env add DATABASE_URL           # + JWT_SECRET, CRON_SECRET, …
+vercel --prod
+```
 
 ## ⏰ Scheduled monitoring
 

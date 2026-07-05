@@ -6,11 +6,5 @@
       "path": "/api/monitoring/cron",
       "schedule": "0 * * * *"
     }
-  ],
-  "functions": {
-    "src/app/api/monitoring/cron/route.ts": { "maxDuration": 300 },
-    "src/app/api/monitoring/collect/route.ts": { "maxDuration": 60 },
-    "src/app/api/reports/route.ts": { "maxDuration": 60 },
-    "src/app/api/ai/assistant/route.ts": { "maxDuration": 60 }
-  }
+  ]
 }
