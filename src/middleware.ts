@@ -1,90 +1,45 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { verifyAccessToken } from "@/lib/auth/jwt";
 
-export function middleware(request: NextRequest) {
-  // Add security headers
-  const response = NextResponse.next()
-  
-  // Skip all middleware in development for better performance
-  if (process.env.NODE_ENV === 'development') {
-    // Only add basic CORS for API routes in development
-    const path = request.nextUrl.pathname
-    if (path.startsWith('/api/')) {
-      response.headers.set('Access-Control-Allow-Origin', '*')
-      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-      
-      if (request.method === 'OPTIONS') {
-        return new NextResponse(null, { status: 200 })
-      }
-    }
-    
-    return response
-  }
-  
-  // Production middleware with full security features
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { SecurityUtils } = require('@/lib/security')
-    
-    // Apply CSP and other security headers
-    const securityHeaders = SecurityUtils.getCSPHeaders()
-    Object.entries(securityHeaders).forEach(([key, value]) => {
-      response.headers.set(key, value)
-    })
+const AUTH_COOKIE = process.env.AUTH_COOKIE_NAME || "mediapulse_session";
 
-    // Rate limiting by IP address
-    const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown'
-    const path = request.nextUrl.pathname
-    
-    // Apply different rate limits based on endpoint
-    let isRateLimited = false
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { rateLimiters } = require('@/lib/security')
-    
-    if (path.startsWith('/api/auth')) {
-      isRateLimited = !rateLimiters.auth(ip)
-    } else if (path.startsWith('/api/events')) {
-      isRateLimited = !rateLimiters.events(ip)
-    } else if (path.startsWith('/api/ai/templates')) {
-      isRateLimited = !rateLimiters.templates(ip)
-    } else if (path.startsWith('/api/marketplace')) {
-      isRateLimited = !rateLimiters.marketplace(ip)
-    }
+const PROTECTED_PREFIXES = [
+  "/dashboard", "/articles", "/keywords", "/alerts", "/reports",
+  "/competitors", "/assistant", "/search", "/sources", "/settings",
+];
+const AUTH_PAGES = ["/login", "/register", "/forgot-password", "/reset-password"];
 
-    if (isRateLimited) {
-      return new NextResponse(
-        JSON.stringify({ error: 'Too many requests' }),
-        {
-          status: 429,
-          headers: {
-            'Content-Type': 'application/json',
-            'Retry-After': '60'
-          }
-        }
-      )
-    }
+function securityHeaders(res: NextResponse) {
+  res.headers.set("X-Frame-Options", "SAMEORIGIN");
+  res.headers.set("X-Content-Type-Options", "nosniff");
+  res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  return res;
+}
 
-    // CORS handling for API routes
-    if (path.startsWith('/api/')) {
-      response.headers.set('Access-Control-Allow-Origin', '*')
-      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-      
-      if (request.method === 'OPTIONS') {
-        return new NextResponse(null, { status: 200 })
-      }
-    }
-  } catch (error) {
-    // If security modules fail, continue with basic response
-    console.error('Middleware error:', error)
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const token = request.cookies.get(AUTH_COOKIE)?.value;
+  const claims = token ? await verifyAccessToken(token) : null;
+  const isAuthed = Boolean(claims);
+
+  const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const isAuthPage = AUTH_PAGES.some((p) => pathname === p);
+
+  if (isProtected && !isAuthed) {
+    const url = new URL("/login", request.url);
+    url.searchParams.set("next", pathname);
+    return securityHeaders(NextResponse.redirect(url));
   }
 
-  return response
+  if (isAuthPage && isAuthed) {
+    return securityHeaders(NextResponse.redirect(new URL("/dashboard", request.url)));
+  }
+
+  return securityHeaders(NextResponse.next());
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
-}
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|logo.svg|robots.txt).*)"],
+};

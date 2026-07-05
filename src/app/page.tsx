@@ -1,319 +1,169 @@
-'use client'
+import Link from "next/link";
+import {
+  ArrowRight, Radar, Brain, Bell, FileText, Swords, Search, ShieldCheck,
+  Sparkles, LineChart, Globe, Check,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Logo } from "@/components/logo";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { getCurrentUser } from "@/lib/auth/session";
 
-import { useState, useCallback, useMemo } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Calendar, MapPin, Users, TrendingUp, Search, Plus, Wallet, Sparkles, Globe, Ticket } from 'lucide-react'
-import Link from 'next/link'
-import CreateEventForm from '@/components/create-event-form'
-import WalletConnect from '@/components/wallet-connect'
+const FEATURES = [
+  { icon: Radar, title: "Real-time monitoring", desc: "Track mentions across news and public content the moment they're published, with modular RSS, Google News and web collectors." },
+  { icon: Brain, title: "AI sentiment analysis", desc: "Every article is automatically scored for sentiment, risk, topics and named entities with confidence levels." },
+  { icon: Sparkles, title: "AI assistant (RAG)", desc: "Ask questions about your coverage and get grounded answers, summaries, press statements and talking points." },
+  { icon: Bell, title: "Smart alerts", desc: "Get notified on negative sentiment, keyword spikes, competitor activity and breaking news across channels." },
+  { icon: FileText, title: "Executive reports", desc: "Generate rich PDF reports with charts, tables, AI commentary and recommendations in one click." },
+  { icon: Swords, title: "Competitor intelligence", desc: "Benchmark share of voice, sentiment and coverage volume against your competitors over time." },
+  { icon: Search, title: "Advanced search", desc: "Filter coverage by sentiment, source, author, country, language, topic, risk level and date." },
+  { icon: ShieldCheck, title: "Enterprise security", desc: "Role-based access control, audit logs, JWT auth, input validation and rate limiting by default." },
+];
 
-// Memoize the trending events data to prevent re-creation
-const INITIAL_EVENTS = [
-  {
-    id: 1,
-    title: "Tech Innovation Summit 2024",
-    type: "corporate",
-    date: "2024-02-15",
-    location: "Virtual",
-    attendees: 1250,
-    price: "0.05 ETH",
-    image: "/api/placeholder/400/250",
-    tags: ["Technology", "Innovation", "Networking"]
-  },
-  {
-    id: 2,
-    title: "Startup Pitch Night",
-    type: "social",
-    date: "2024-02-20",
-    location: "San Francisco",
-    attendees: 300,
-    price: "$25",
-    image: "/api/placeholder/400/250",
-    tags: ["Startup", "Pitching", "Investment"]
-  },
-  {
-    id: 3,
-    title: "Web3 Developer Workshop",
-    type: "corporate",
-    date: "2024-02-25",
-    location: "Virtual",
-    attendees: 500,
-    price: "0.02 ETH",
-    image: "/api/placeholder/400/250",
-    tags: ["Web3", "Development", "Blockchain"]
-  }
-] as const
+const ROLES = ["Administrator", "Organization Manager", "Communications Officer", "Analyst", "Viewer"];
 
-export default function Home() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isWalletConnected, setIsWalletConnected] = useState(false)
-  const [showCreateForm, setShowCreateForm] = useState(false)
-  const [showWallet, setShowWallet] = useState(false)
+const STEPS = [
+  { title: "Define keywords", desc: "Add company names, products, executives, campaigns and industry terms with boolean rules." },
+  { title: "Collect & analyze", desc: "The ingestion engine gathers coverage and the AI analyzes sentiment, risk and topics." },
+  { title: "Act on insights", desc: "Get alerts, generate reports and ask the AI assistant for communication strategy." },
+];
 
-  // Memoize the connectWallet function to prevent re-creation
-  const connectWallet = useCallback(() => {
-    setShowWallet(true)
-  }, [])
-
-  // Memoize the wallet connection handlers
-  const handleWalletConnect = useCallback(() => {
-    setIsWalletConnected(true)
-    setShowWallet(false)
-  }, [])
-
-  const handleWalletDisconnect = useCallback(() => {
-    setIsWalletConnected(false)
-    setShowWallet(false)
-  }, [])
-
-  // Memoize the show create form handler
-  const handleShowCreateForm = useCallback(() => {
-    setShowCreateForm(true)
-  }, [])
-
-  // Filter events based on search query (memoized)
-  const filteredEvents = useMemo(() => {
-    if (!searchQuery.trim()) return INITIAL_EVENTS
-    
-    const query = searchQuery.toLowerCase()
-    return INITIAL_EVENTS.filter(event => 
-      event.title.toLowerCase().includes(query) ||
-      event.tags.some(tag => tag.toLowerCase().includes(query)) ||
-      event.location.toLowerCase().includes(query)
-    )
-  }, [searchQuery])
-
-  // Show create form
-  if (showCreateForm) {
-    return <CreateEventForm />
-  }
-
-  // Show wallet connection
-  if (showWallet) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center p-4">
-        <WalletConnect 
-          onConnect={handleWalletConnect}
-          onDisconnect={handleWalletDisconnect}
-        />
-      </div>
-    )
-  }
+export default async function LandingPage() {
+  const user = await getCurrentUser();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
-      {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                GOODAP
-              </h1>
-            </div>
-            
-            <nav className="hidden md:flex items-center space-x-6">
-              <Link href="#events" className="text-gray-600 hover:text-purple-600 transition">Events</Link>
-              <Link href="#marketplace" className="text-gray-600 hover:text-purple-600 transition">Marketplace</Link>
-              <Link href="#create" className="text-gray-600 hover:text-purple-600 transition">Create</Link>
-              <Link href="#templates" className="text-gray-600 hover:text-purple-600 transition">Templates</Link>
-            </nav>
+    <div className="relative min-h-screen overflow-hidden bg-background">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] bg-glow" />
+      <div className="pointer-events-none absolute inset-0 bg-grid opacity-[0.35]" />
 
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="outline"
-                onClick={connectWallet}
-                className="flex items-center space-x-2"
-              >
-                <Wallet className="w-4 h-4" />
-                <span>{isWalletConnected ? '0x1234...5678' : 'Connect Wallet'}</span>
-              </Button>
-              <Button onClick={handleShowCreateForm}>Create Event</Button>
-            </div>
-          </div>
+      {/* Nav */}
+      <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+        <Logo />
+        <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex">
+          <a href="#features" className="hover:text-foreground">Features</a>
+          <a href="#how" className="hover:text-foreground">How it works</a>
+          <a href="#roles" className="hover:text-foreground">Roles</a>
+        </nav>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          {user ? (
+            <Button asChild size="sm"><Link href="/dashboard">Open app</Link></Button>
+          ) : (
+            <>
+              <Button asChild variant="ghost" size="sm"><Link href="/login">Sign in</Link></Button>
+              <Button asChild size="sm"><Link href="/register">Get started</Link></Button>
+            </>
+          )}
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="text-center max-w-4xl mx-auto">
-          <Badge className="mb-4 bg-purple-100 text-purple-800 hover:bg-purple-200">
-            🚀 AI-Powered Event Management
-          </Badge>
-          <h2 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-            Create Amazing Events with GOODAP
-          </h2>
-          <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-            The ultimate platform for social and corporate events. Trade tickets, sell merchandise, 
-            and leverage AI-powered templates to create unforgettable experiences.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-            <Button size="lg" className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700" onClick={handleShowCreateForm}>
-              <Plus className="w-5 h-5 mr-2" />
-              Create Your Event
-            </Button>
-            <Button size="lg" variant="outline">
-              <Sparkles className="w-5 h-5 mr-2" />
-              Explore AI Templates
-            </Button>
-          </div>
-
-          <div className="relative max-w-2xl mx-auto">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <Input
-              placeholder="Search events, templates, or merchandise..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-12 h-12 text-lg"
-            />
-          </div>
+      {/* Hero */}
+      <section className="relative z-10 mx-auto max-w-4xl px-6 pb-20 pt-16 text-center sm:pt-24">
+        <Badge variant="secondary" className="mb-6 gap-1.5 py-1">
+          <Sparkles className="size-3.5 text-primary" /> AI-powered media intelligence
+        </Badge>
+        <h1 className="text-balance text-4xl font-bold tracking-tight sm:text-6xl">
+          Know exactly how the world <span className="bg-gradient-to-r from-primary to-violet-500 bg-clip-text text-transparent">talks about you</span>
+        </h1>
+        <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground">
+          MediaPulse AI monitors news and public content, analyzes sentiment, detects reputation risks,
+          and delivers AI-powered communication insights — all in one enterprise platform.
+        </p>
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <Button asChild size="lg" className="gap-2">
+            <Link href={user ? "/dashboard" : "/register"}>Start monitoring <ArrowRight className="size-4" /></Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/login">Live demo</Link>
+          </Button>
         </div>
+        <p className="mt-4 text-xs text-muted-foreground">Demo login: admin@mediapulse.ai · Password123!</p>
+      </section>
+
+      {/* Stats strip */}
+      <section className="relative z-10 mx-auto mb-20 grid max-w-4xl grid-cols-2 gap-6 px-6 sm:grid-cols-4">
+        {[
+          { value: "12+", label: "Data collectors", icon: Globe },
+          { value: "Real-time", label: "Sentiment scoring", icon: LineChart },
+          { value: "5", label: "User roles", icon: ShieldCheck },
+          { value: "1-click", label: "PDF reports", icon: FileText },
+        ].map((s) => (
+          <div key={s.label} className="rounded-xl border bg-card/50 p-4 text-center backdrop-blur">
+            <s.icon className="mx-auto mb-2 size-5 text-primary" />
+            <p className="text-xl font-semibold">{s.value}</p>
+            <p className="text-xs text-muted-foreground">{s.label}</p>
+          </div>
+        ))}
       </section>
 
       {/* Features */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="grid md:grid-cols-3 gap-8">
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                <Globe className="w-6 h-6 text-purple-600" />
-              </div>
-              <CardTitle>Hybrid Events</CardTitle>
-              <CardDescription>
-                Host both virtual and in-person events with seamless integration
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                <Ticket className="w-6 h-6 text-blue-600" />
-              </div>
-              <CardTitle>Ticket Trading</CardTitle>
-              <CardDescription>
-                Buy, sell, and trade event tickets with Web3 security
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                <Sparkles className="w-6 h-6 text-green-600" />
-              </div>
-              <CardTitle>AI Templates</CardTitle>
-              <CardDescription>
-                Get intelligent event suggestions and templates powered by AI
-              </CardDescription>
-            </CardHeader>
-          </Card>
+      <section id="features" className="relative z-10 mx-auto max-w-7xl px-6 py-16">
+        <div className="mx-auto mb-12 max-w-2xl text-center">
+          <h2 className="text-3xl font-bold tracking-tight">Everything your comms team needs</h2>
+          <p className="mt-3 text-muted-foreground">From ingestion to insight, built for scale and easy to extend.</p>
         </div>
-      </section>
-
-      {/* Trending Events */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h3 className="text-3xl font-bold mb-2">Trending Events</h3>
-            <p className="text-gray-600">Discover what's hot in the community</p>
-          </div>
-          <Button variant="outline">
-            <TrendingUp className="w-4 h-4 mr-2" />
-            View All Trends
-          </Button>
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map((event) => (
-            <Card key={event.id} className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
-              <div className="h-48 bg-gradient-to-br from-purple-100 to-blue-100 relative">
-                <div className="absolute top-4 left-4">
-                  <Badge className={event.type === 'corporate' ? 'bg-blue-500' : 'bg-green-500'}>
-                    {event.type}
-                  </Badge>
-                </div>
-                <div className="absolute top-4 right-4">
-                  <Badge variant="secondary">{event.price}</Badge>
-                </div>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {FEATURES.map((f) => (
+            <div key={f.title} className="group rounded-xl border bg-card p-5 transition-all hover:border-primary/40 hover:shadow-lg">
+              <div className="mb-4 grid size-11 place-items-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                <f.icon className="size-5" />
               </div>
-              <CardHeader>
-                <CardTitle className="text-lg">{event.title}</CardTitle>
-                <div className="flex items-center text-sm text-gray-600 space-x-4">
-                  <div className="flex items-center">
-                    <Calendar className="w-4 h-4 mr-1" />
-                    {event.date}
-                  </div>
-                  <div className="flex items-center">
-                    <MapPin className="w-4 h-4 mr-1" />
-                    {event.location}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Users className="w-4 h-4 mr-1" />
-                    {event.attendees} attending
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {event.tags.map((tag, index) => (
-                    <Badge key={index} variant="outline" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-                <div className="flex space-x-2">
-                  <Button className="flex-1">View Event</Button>
-                </div>
-              </CardContent>
-            </Card>
+              <h3 className="font-semibold">{f.title}</h3>
+              <p className="mt-1.5 text-sm text-muted-foreground">{f.desc}</p>
+            </div>
           ))}
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-12 text-center text-white">
-          <h3 className="text-3xl font-bold mb-4">Ready to Create Your Next Event?</h3>
-          <p className="text-xl mb-8 opacity-90">
-            Join thousands of event creators using GOODAP to host amazing experiences
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary" className="bg-white text-purple-600 hover:bg-gray-100">
-              Get Started Free
-            </Button>
-            <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-purple-600">
-              Watch Demo
-            </Button>
+      {/* How it works */}
+      <section id="how" className="relative z-10 mx-auto max-w-5xl px-6 py-16">
+        <div className="mx-auto mb-12 max-w-2xl text-center">
+          <h2 className="text-3xl font-bold tracking-tight">How it works</h2>
+          <p className="mt-3 text-muted-foreground">Three steps from setup to actionable intelligence.</p>
+        </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {STEPS.map((s, i) => (
+            <div key={s.title} className="relative rounded-xl border bg-card p-6">
+              <div className="mb-4 grid size-9 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground">{i + 1}</div>
+              <h3 className="font-semibold">{s.title}</h3>
+              <p className="mt-1.5 text-sm text-muted-foreground">{s.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Roles */}
+      <section id="roles" className="relative z-10 mx-auto max-w-5xl px-6 py-16">
+        <div className="rounded-2xl border bg-gradient-to-br from-primary/5 to-transparent p-8 sm:p-12">
+          <div className="mx-auto mb-8 max-w-2xl text-center">
+            <h2 className="text-3xl font-bold tracking-tight">Built for every role</h2>
+            <p className="mt-3 text-muted-foreground">Granular role-based access control keeps the right people in the loop.</p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {ROLES.map((r) => (
+              <div key={r} className="flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-sm font-medium">
+                <Check className="size-4 text-primary" /> {r}
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t bg-gray-50">
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center space-x-2 mb-4 md:mb-0">
-              <div className="w-6 h-6 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-semibold">GOODAP</span>
-            </div>
-            <p className="text-gray-600 text-sm">
-              © 2024 GOODAP. Powered by AI and Web3 technology.
-            </p>
-          </div>
+      {/* CTA */}
+      <section className="relative z-10 mx-auto max-w-3xl px-6 py-20 text-center">
+        <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Ready to take control of your narrative?</h2>
+        <p className="mt-4 text-muted-foreground">Set up your workspace in minutes. No credit card required.</p>
+        <Button asChild size="lg" className="mt-8 gap-2">
+          <Link href={user ? "/dashboard" : "/register"}>Get started free <ArrowRight className="size-4" /></Link>
+        </Button>
+      </section>
+
+      <footer className="relative z-10 border-t">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-8 sm:flex-row">
+          <Logo size="sm" />
+          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} MediaPulse AI. All rights reserved.</p>
         </div>
       </footer>
     </div>
-  )
+  );
 }
